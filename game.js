@@ -1,6 +1,6 @@
 // Game Configuration
 const CONFIG = {
-    baseTime: 299000,
+    baseTime: 20000,
     minTime: 400,
     difficultyFactor: 0.05,
     baseSize: 100,
@@ -19,13 +19,25 @@ const SKINS = [
     { id: 'void_purple', name: 'Void', color: '#9d00ff', req: 150 }
 ];
 
+// Backgrounds Database
+const BACKGROUNDS = [
+    { id: 'bg_default', name: 'Deep Space', color: '#050510', req: 0 },
+    { id: 'bg_red', name: 'Mars', color: '#1a0510', req: 20 },
+    { id: 'bg_green', name: 'Toxic', color: '#051a10', req: 40 },
+    { id: 'bg_orange', name: 'Inferno', color: '#1a1005', req: 60 },
+    { id: 'bg_purple', name: 'Nebula', color: '#10051a', req: 80 },
+    { id: 'bg_pitch', name: 'Abyss', color: '#000000', req: 100 }
+];
+
 // State
 let state = {
     isPlaying: false,
     score: 0,
     bestScore: parseInt(localStorage.getItem('tapOrDie_bestScore')) || 0,
     currentSkinId: localStorage.getItem('tapOrDie_skin') || 'neon_cyan',
+    currentBgId: localStorage.getItem('tapOrDie_bg') || 'bg_default',
     currentTarget: null,
+    currentWrapper: null,
     targetTimerInv: null,
     spawnTime: 0,
     timeLimit: 0,
@@ -35,8 +47,14 @@ let state = {
     // New State
     combo: 0,
     isPaused: false,
-    pauseStartTime: 0
+    pauseStartTime: 0,
+    combo: 0,
+    isPaused: false,
+    pauseStartTime: 0,
+    currentLevel: 1
 };
+
+
 
 // AdMob Imports 
 const AdMob = window.Capacitor ? window.Capacitor.Plugins.AdMob : null;
@@ -62,6 +80,7 @@ const el = {
     quitBtn: document.getElementById('quit-btn'),
     comboContainer: document.getElementById('combo-container'),
     comboValue: document.getElementById('combo-value'),
+    levelValue: document.getElementById('level-value'),
     // Shop
     shopBtn: document.getElementById('shop-btn-trigger'),
     shopModal: document.getElementById('shop-modal'),
@@ -73,6 +92,7 @@ const el = {
 // Initialize
 function init() {
     updateSkinVariables();
+    updateBackground();
     el.best.innerText = state.bestScore;
 
     el.startBtn.addEventListener('click', startGame);
@@ -132,6 +152,42 @@ function renderShop() {
 
         el.skinGrid.appendChild(div);
     });
+
+    // Separator
+    const sep = document.createElement('h3');
+    sep.style.color = '#fff';
+    sep.style.width = '100%';
+    sep.style.textAlign = 'center';
+    sep.style.gridColumn = '1 / -1';
+    sep.innerText = 'BACKGROUNDS';
+    el.skinGrid.appendChild(sep);
+
+    // Render Backgrounds
+    BACKGROUNDS.forEach(bg => {
+        const isLocked = state.bestScore < bg.req;
+        const div = document.createElement('div');
+        div.className = `skin-item ${state.currentBgId === bg.id ? 'active' : ''} ${isLocked ? 'locked' : ''}`;
+
+        div.innerHTML = `
+            <div class="skin-preview" style="background:${bg.color}; box-shadow: 0 0 10px ${bg.color}"></div>
+            <div class="skin-req">${isLocked ? `Best: ${bg.req}` : bg.name}</div>
+        `;
+
+        if (!isLocked) {
+            div.onclick = () => {
+                state.currentBgId = bg.id;
+                localStorage.setItem('tapOrDie_bg', bg.id);
+                updateBackground();
+                renderShop();
+            };
+        }
+
+        el.skinGrid.appendChild(div);
+    });
+}
+function updateBackground() {
+    const bg = BACKGROUNDS.find(b => b.id === state.currentBgId) || BACKGROUNDS[0];
+    document.documentElement.style.setProperty('--bg-color', bg.color);
 }
 
 // Ads
@@ -201,6 +257,8 @@ function startGame() {
 
     el.pauseBtn.classList.remove('hidden');
     state.combo = 0;
+    state.currentLevel = 1;
+    updateLevelUI();
     updateComboUI();
 
     requestFullscreen();
@@ -216,8 +274,9 @@ function gameOver() {
     state.isPlaying = false;
     cancelAnimationFrame(state.animationFrameId);
 
-    if (state.currentTarget) {
-        state.currentTarget.remove();
+    if (state.currentWrapper) {
+        state.currentWrapper.remove();
+        state.currentWrapper = null;
         state.currentTarget = null;
     }
 
@@ -249,11 +308,20 @@ function updateUI() {
 }
 
 function getDifficulty() {
+    // Difficulty scales with Score AND Level
     let time = CONFIG.baseTime * Math.exp(-CONFIG.difficultyFactor * state.score);
+    // Cap minimum time based on Level to prevent it from being impossible too fast, 
+    // or make it harder. Let's stick to score-based time but add movement.
     time = Math.max(time, CONFIG.minTime);
+
     let size = CONFIG.baseSize * Math.exp(-CONFIG.sizeFactor * state.score);
     size = Math.max(size, CONFIG.minSize);
+
     return { time, size };
+}
+
+function updateLevelUI() {
+    el.levelValue.innerText = state.currentLevel;
 }
 
 function spawnTarget() {
@@ -263,12 +331,7 @@ function spawnTarget() {
     state.timeLimit = diff.time;
     state.spawnTime = performance.now();
 
-    if (state.currentTarget) state.currentTarget.remove();
-
-    const target = document.createElement('div');
-    target.className = 'target';
-    target.style.width = `${diff.size}px`;
-    target.style.height = `${diff.size}px`;
+    if (state.currentWrapper) state.currentWrapper.remove();
 
     const containerW = el.playArea.clientWidth;
     const containerH = el.playArea.clientHeight;
@@ -277,12 +340,33 @@ function spawnTarget() {
     const x = Math.random() * (containerW - pad * 2) + pad;
     const y = Math.random() * (containerH - pad * 2) + pad;
 
-    target.style.left = `${x}px`;
-    target.style.top = `${y}px`;
+    // Create Wrapper for positioning/movement
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'absolute';
+    wrapper.style.left = `${x}px`;
+    wrapper.style.top = `${y}px`;
+    wrapper.style.width = '0px';
+    wrapper.style.height = '0px'; // Wrapper acts as anchor
+
+    // Create Target for scaling
+    const target = document.createElement('div');
+    target.className = 'target';
+    target.style.width = `${diff.size}px`;
+    target.style.height = `${diff.size}px`;
+    // target has transform: translate(-50%, -50%) in CSS so it centers on wrapper
+
+    // Moving Targets Logic (Level 2+)
+    if (state.currentLevel >= 2) {
+        animateWrapper(wrapper);
+    }
 
     target.addEventListener('pointerdown', onTargetHit);
-    el.playArea.appendChild(target);
+
+    wrapper.appendChild(target);
+    el.playArea.appendChild(wrapper);
+
     state.currentTarget = target;
+    state.currentWrapper = wrapper;
 
     requestAnimationFrame(gameUpdate);
 }
@@ -301,8 +385,13 @@ function onTargetHit(e) {
 
     updateComboUI();
     updateUI();
-    state.currentTarget.remove();
+    updateComboUI();
+    updateUI();
+
+    if (state.currentWrapper) state.currentWrapper.remove();
     state.currentTarget = null;
+    state.currentWrapper = null;
+
     spawnTarget();
 }
 
@@ -402,6 +491,24 @@ function quitGame() {
     cancelAnimationFrame(state.animationFrameId);
     el.pauseMenu.classList.add('hidden');
     gameOver(); // Trigger game over screen
+}
+
+function animateWrapper(wrapper) {
+    const speed = 1500 + Math.random() * 1000;
+    // Move amount
+    const range = 50 * Math.min(state.currentLevel, 5);
+    const x = (Math.random() - 0.5) * range;
+    const y = (Math.random() - 0.5) * range;
+
+    wrapper.animate([
+        { transform: 'translate(0px, 0px)' },
+        { transform: `translate(${x}px, ${y}px)` }
+    ], {
+        duration: speed,
+        iterations: Infinity,
+        direction: 'alternate',
+        easing: 'ease-in-out'
+    });
 }
 
 init();
