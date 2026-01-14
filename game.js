@@ -1,6 +1,6 @@
 // Game Configuration
 const CONFIG = {
-    baseTime: 2000,
+    baseTime: 299000,
     minTime: 400,
     difficultyFactor: 0.05,
     baseSize: 100,
@@ -30,7 +30,12 @@ let state = {
     spawnTime: 0,
     timeLimit: 0,
     animationFrameId: null,
-    adMobReady: false
+    adMobReady: false,
+
+    // New State
+    combo: 0,
+    isPaused: false,
+    pauseStartTime: 0
 };
 
 // AdMob Imports 
@@ -50,6 +55,13 @@ const el = {
     startBtn: document.getElementById('start-btn'),
     resultBox: document.getElementById('result-box'),
     titleText: document.getElementById('title-text'),
+    // HUD & Pause
+    pauseBtn: document.getElementById('pause-btn'),
+    pauseMenu: document.getElementById('pause-menu'),
+    resumeBtn: document.getElementById('resume-btn'),
+    quitBtn: document.getElementById('quit-btn'),
+    comboContainer: document.getElementById('combo-container'),
+    comboValue: document.getElementById('combo-value'),
     // Shop
     shopBtn: document.getElementById('shop-btn-trigger'),
     shopModal: document.getElementById('shop-modal'),
@@ -66,6 +78,11 @@ function init() {
     el.startBtn.addEventListener('click', startGame);
     el.shopBtn.addEventListener('click', openShop);
     el.closeShopBtn.addEventListener('click', closeShop);
+
+    // Pause Listeners
+    el.pauseBtn.addEventListener('click', togglePause);
+    el.resumeBtn.addEventListener('click', togglePause);
+    el.quitBtn.addEventListener('click', quitGame);
 
     document.addEventListener('click', () => {
         if (!audioCtx) audioCtx = new AudioContext();
@@ -137,7 +154,14 @@ async function showAd() {
     } catch (e) { }
 }
 
-// Sound
+// Sound & Haptics
+function triggerHaptic(type) {
+    if (navigator.vibrate) {
+        if (type === 'success') navigator.vibrate(10); // Light tap
+        if (type === 'fail') navigator.vibrate([50, 50, 50]); // Heavy shake
+    }
+}
+
 function playSound(type) {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
@@ -175,7 +199,17 @@ function startGame() {
     el.resultBox.classList.add('hidden');
     el.titleText.classList.remove('hidden');
 
+    el.pauseBtn.classList.remove('hidden');
+    state.combo = 0;
+    updateComboUI();
+
+    requestFullscreen();
     spawnTarget();
+}
+
+function requestFullscreen() {
+    const docEl = document.documentElement;
+    if (docEl.requestFullscreen) docEl.requestFullscreen().catch(err => { });
 }
 
 function gameOver() {
@@ -193,6 +227,8 @@ function gameOver() {
     }
 
     playSound('fail');
+    triggerHaptic('fail');
+    el.pauseBtn.classList.add('hidden');
 
     // Screen Shake Effect
     el.container.classList.add('shake');
@@ -255,8 +291,15 @@ function onTargetHit(e) {
     if (!state.isPlaying) return;
     e.preventDefault();
     playSound('success');
+    triggerHaptic('success');
     createExplosion(e.clientX, e.clientY);
-    state.score++;
+
+    // Combo Logic
+    state.combo++;
+    const multiplier = 1 + Math.floor(state.combo / 10);
+    state.score += multiplier;
+
+    updateComboUI();
     updateUI();
     state.currentTarget.remove();
     state.currentTarget = null;
@@ -316,6 +359,49 @@ function createExplosion(x, y) {
             easing: 'cubic-bezier(0, .9, .57, 1)'
         }).onfinish = () => p.remove();
     }
+}
+
+function updateComboUI() {
+    if (state.combo > 1) {
+        el.comboContainer.classList.remove('hidden');
+        el.comboValue.innerText = `x${state.combo}`;
+
+        // Reset animation
+        el.comboValue.style.animation = 'none';
+        el.comboValue.offsetHeight; /* trigger reflow */
+        el.comboValue.style.animation = 'pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    } else {
+        el.comboContainer.classList.add('hidden');
+    }
+}
+
+function togglePause() {
+    if (!state.isPlaying) return;
+
+    state.isPaused = !state.isPaused;
+
+    if (state.isPaused) {
+        // Pausing
+        cancelAnimationFrame(state.animationFrameId);
+        state.pauseStartTime = performance.now();
+        el.pauseMenu.classList.remove('hidden');
+        el.pauseBtn.classList.add('hidden');
+    } else {
+        // Resuming
+        const pauseDuration = performance.now() - state.pauseStartTime;
+        state.spawnTime += pauseDuration;
+        el.pauseMenu.classList.add('hidden');
+        el.pauseBtn.classList.remove('hidden');
+        state.animationFrameId = requestAnimationFrame(gameUpdate);
+    }
+}
+
+function quitGame() {
+    togglePause(); // Resume logic to clear flags
+    state.isPlaying = false; // Force stop
+    cancelAnimationFrame(state.animationFrameId);
+    el.pauseMenu.classList.add('hidden');
+    gameOver(); // Trigger game over screen
 }
 
 init();

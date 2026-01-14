@@ -10,6 +10,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registered'))
+                .catch(err => console.log('SW Fail:', err));
+        }
+    </script>
 </head>
 
 <body>
@@ -20,15 +28,30 @@
                 <span id="score-label">SCORE</span>
                 <span id="score-value">0</span>
             </div>
+
+            <div id="combo-container" class="hidden">
+                <span id="combo-value">x1</span>
+                <span id="combo-label">COMBO</span>
+            </div>
+
             <div id="best-container">
                 <span id="best-label">BEST</span>
                 <span id="best-value">0</span>
             </div>
         </div>
 
+        <button id="pause-btn" class="icon-btn hidden">II</button>
+
         <!-- Play Area -->
         <div id="play-area">
             <!-- Targets will be spawned here -->
+        </div>
+
+        <!-- Pause Menu -->
+        <div id="pause-menu" class="hidden">
+            <h2>PAUSED</h2>
+            <button id="resume-btn">RESUME</button>
+            <button id="quit-btn" class="secondary-btn">QUIT</button>
         </div>
 
         <!-- Start / Game Over Screen -->
