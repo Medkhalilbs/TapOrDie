@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tap or Die</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="game-container">
+        <!-- HUD -->
+        <div id="hud">
+            <div id="score-container">
+                <span id="score-label">SCORE</span>
+                <span id="score-value">0</span>
+            </div>
+            <div id="best-container">
+                <span id="best-label">BEST</span>
+                <span id="best-value">0</span>
+            </div>
+        </div>
+
+        <!-- Play Area -->
+        <div id="play-area">
+            <!-- Targets will be spawned here -->
+        </div>
+
+        <!-- Start / Game Over Screen -->
+        <div id="ui-overlay" class="active">
+            <div class="panel">
+                <h1 id="title-text">TAP<br>OR<br><span class="danger">DIE</span></h1>
+                <div id="result-box" class="hidden">
+                    <p>GAME OVER</p>
+                    <p class="final-score">Score: <span id="final-score-value">0</span></p>
+                </div>
+                <button id="start-btn">TAP TO START</button>
+                <button id="shop-btn-trigger" class="secondary-btn">SKIN SHOP</button>
+            </div>
+        </div>
+
+        <!-- Shop Modal -->
+        <div id="shop-modal" class="hidden">
+            <div class="shop-content">
+                <h2>SKIN SHOP</h2>
+                <p class="shop-balance">BEST SCORE: <span id="shop-best-score">0</span></p>
+                <div id="skin-grid">
+                    <!-- Skins injected by JS -->
+                </div>
+                <button id="close-shop">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+
+</html>
