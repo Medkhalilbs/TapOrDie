@@ -42,6 +42,30 @@ body {
     transition: background 1s ease;
 }
 
+#game-container.fever {
+    box-shadow: 0 0 50px #ffd700, inset 0 0 30px #ffd700;
+    border: 2px solid #ffd700;
+}
+
+.trail-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: var(--skin-color);
+    box-shadow: 0 0 10px var(--skin-color);
+    animation: fadeOut 0.5s linear forwards;
+    z-index: 100;
+}
+
+@keyframes fadeOut {
+    to {
+        transform: scale(0);
+        opacity: 0;
+    }
+}
+
 /* Shake Animation */
 .shake {
     animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
@@ -141,6 +165,37 @@ body {
     /* animation: pulse 0.5s infinite alternate; REMOVED pulse handled by logic or we re-add */
 }
 
+.target.decoy {
+    background: var(--danger-color);
+    box-shadow: 0 0 20px var(--danger-color);
+}
+
+.target.decoy::after {
+    border-color: #fff;
+    content: '✖';
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.target.gold {
+    background: #ffd700;
+    box-shadow: 0 0 25px #ffd700;
+}
+
+.target.gold::after {
+    border-color: #fff;
+    content: '★';
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-size: 20px;
+}
+
 .target::after {
     content: '';
     position: absolute;
@@ -152,6 +207,37 @@ body {
     border: 2px solid var(--skin-color);
     transform: translate(-50%, -50%);
     opacity: 0.5;
+}
+
+.target.decoy {
+    background: var(--danger-color);
+    box-shadow: 0 0 20px var(--danger-color);
+}
+
+.target.decoy::after {
+    border-color: #fff;
+    content: '✖';
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.target.gold {
+    background: #ffd700;
+    box-shadow: 0 0 25px #ffd700;
+}
+
+.target.gold::after {
+    border-color: #fff;
+    content: '★';
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-size: 20px;
 }
 
 /* UI Overlay */
