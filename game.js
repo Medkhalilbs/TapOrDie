@@ -1,11 +1,11 @@
 // Game Configuration
 const CONFIG = {
-    baseTime: 20000,
+    baseTime: 5000,
     minTime: 400,
-    difficultyFactor: 0.05,
+    difficultyFactor: 0.001,
     baseSize: 100,
-    minSize: 40,
-    sizeFactor: 0.02
+    minSize: 150,
+    sizeFactor: 0.05
 };
 
 // Skins Database
@@ -51,7 +51,8 @@ let state = {
     combo: 0,
     isPaused: false,
     pauseStartTime: 0,
-    currentLevel: 1
+    currentLevel: 1,
+    isMuted: localStorage.getItem('tapOrDie_muted') === 'true' // Default false, stored as string 'true' if muted
 };
 
 
@@ -81,8 +82,10 @@ const el = {
     comboContainer: document.getElementById('combo-container'),
     comboValue: document.getElementById('combo-value'),
     levelValue: document.getElementById('level-value'),
-    // Shop
+    // Shop & Settings
     shopBtn: document.getElementById('shop-btn-trigger'),
+    soundBtn: document.getElementById('sound-btn'), // Main Menu
+    pauseSoundBtn: document.getElementById('pause-sound-btn'), // Pause Menu
     shopModal: document.getElementById('shop-modal'),
     closeShopBtn: document.getElementById('close-shop'),
     skinGrid: document.getElementById('skin-grid'),
@@ -99,10 +102,13 @@ function init() {
     el.shopBtn.addEventListener('click', openShop);
     el.closeShopBtn.addEventListener('click', closeShop);
 
-    // Pause Listeners
     el.pauseBtn.addEventListener('click', togglePause);
     el.resumeBtn.addEventListener('click', togglePause);
     el.quitBtn.addEventListener('click', quitGame);
+    el.soundBtn.addEventListener('click', toggleSound);
+    el.pauseSoundBtn.addEventListener('click', toggleSound);
+
+    updateSoundUI(); // Set initial icon
 
     document.addEventListener('click', () => {
         if (!audioCtx) audioCtx = new AudioContext();
@@ -219,7 +225,7 @@ function triggerHaptic(type) {
 }
 
 function playSound(type) {
-    if (!audioCtx) return;
+    if (state.isMuted || !audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     osc.connect(gainNode);
@@ -493,10 +499,8 @@ function quitGame() {
     gameOver(); // Trigger game over screen
 }
 
-function animateWrapper(wrapper) {
+function animateWrapper(wrapper, range) {
     const speed = 1500 + Math.random() * 1000;
-    // Move amount
-    const range = 50 * Math.min(state.currentLevel, 5);
     const x = (Math.random() - 0.5) * range;
     const y = (Math.random() - 0.5) * range;
 
@@ -509,6 +513,20 @@ function animateWrapper(wrapper) {
         direction: 'alternate',
         easing: 'ease-in-out'
     });
+}
+
+function toggleSound() {
+    state.isMuted = !state.isMuted;
+    localStorage.setItem('tapOrDie_muted', state.isMuted);
+    updateSoundUI();
+}
+
+function updateSoundUI() {
+    // If we want different icons for menu vs HUD, we can adjust here.
+    // Since it's just "Sound", we use Speaker symbols.
+    const icon = state.isMuted ? '🔇' : '🔊';
+    if (el.soundBtn) el.soundBtn.innerText = icon;
+    if (el.pauseSoundBtn) el.pauseSoundBtn.innerText = icon;
 }
 
 init();

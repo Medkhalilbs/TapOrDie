@@ -56,7 +56,10 @@
         <div id="pause-menu" class="hidden">
             <h2>PAUSED</h2>
             <button id="resume-btn">RESUME</button>
-            <button id="quit-btn" class="secondary-btn">QUIT</button>
+            <div style="display: flex; gap: 10px; width: 100%; max-width: 250px;">
+                <button id="quit-btn" class="secondary-btn" style="flex: 2;">QUIT</button>
+                <button id="pause-sound-btn" class="secondary-btn" style="flex: 1; min-width: 60px;">🔊</button>
+            </div>
         </div>
 
         <!-- Start / Game Over Screen -->
@@ -68,7 +71,10 @@
                     <p class="final-score">Score: <span id="final-score-value">0</span></p>
                 </div>
                 <button id="start-btn">TAP TO START</button>
-                <button id="shop-btn-trigger" class="secondary-btn">SKIN SHOP</button>
+                <div style="display: flex; gap: 10px; width: 100%; max-width: 250px;">
+                    <button id="shop-btn-trigger" class="secondary-btn" style="flex: 2;">SKIN SHOP</button>
+                    <button id="sound-btn" class="secondary-btn" style="flex: 1; min-width: 60px;">🔊</button>
+                </div>
             </div>
         </div>
 
