@@ -1,0 +1,16 @@
+{
+    "name": "Tap or Die",
+    "short_name": "TapOrDie",
+    "start_url": "./index.html",
+    "display": "fullscreen",
+    "background_color": "#050510",
+    "theme_color": "#00f3ff",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "assets/icon.png",
+            "sizes": "192x192 512x512",
+            "type": "image/png"
+        }
+    ]
+}
