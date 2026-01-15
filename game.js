@@ -64,8 +64,16 @@ let state = {
 // AdMob Imports 
 const AdMob = window.Capacitor ? window.Capacitor.Plugins.AdMob : null;
 
-const AudioContext = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
+// Audio Manager Instance (Global)
+let audio = {
+    init: () => { },
+    playSFX: () => { },
+    startMusic: () => { },
+    stopMusic: () => { },
+    toggleMute: () => false,
+    tempo: 120,
+    isMuted: false
+};
 
 // DOM Elements
 const el = {
@@ -102,34 +110,70 @@ const el = {
 
 // Initialize
 function init() {
-    updateSkinVariables();
-    updateBackground();
-    el.best.innerText = state.bestScore;
+    // 1. Safe Audio Initialization
+    try {
+        if (typeof window.AudioManager !== 'undefined') {
+            audio = new window.AudioManager();
+            console.log("Audio System Loaded");
+        } else {
+            console.warn("AudioManager class missing. Running silent.");
+        }
+    } catch (e) {
+        console.error("Audio instantiation failed:", e);
+        // audio stays as dummy object
+    }
 
-    el.startBtn.addEventListener('click', startGame);
-    el.shopBtn.addEventListener('click', openShop);
-    el.closeShopBtn.addEventListener('click', closeShop);
+    // 2. UI Initialization (Protected)
+    try {
+        updateSkinVariables();
+        updateBackground();
+        el.best.innerText = state.bestScore;
 
-    el.pauseBtn.addEventListener('click', togglePause);
-    el.resumeBtn.addEventListener('click', togglePause);
-    el.quitBtn.addEventListener('click', quitGame);
-    el.soundBtn.addEventListener('click', toggleSound);
-    el.pauseSoundBtn.addEventListener('click', toggleSound);
+        // BIND START BUTTON TO RESUME AUDIO
+        if (el.startBtn) {
+            el.startBtn.addEventListener('click', () => {
+                startGame();
+                // Ensure Audio Context is Active
+                if (audio && audio.context && audio.context.state === 'suspended') {
+                    audio.context.resume();
+                } else if (audio && audio.init) {
+                    // Try init if not yet done
+                    try { audio.init(); } catch (e) { }
+                }
+            });
+        }
 
-    updateSoundUI(); // Set initial icon
+        if (el.shopBtn) el.shopBtn.addEventListener('click', openShop);
+        if (el.closeShopBtn) el.closeShopBtn.addEventListener('click', closeShop);
 
-    document.addEventListener('click', () => {
-        if (!audioCtx) audioCtx = new AudioContext();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }, { once: true });
+        if (el.pauseBtn) el.pauseBtn.addEventListener('click', togglePause);
+        if (el.resumeBtn) el.resumeBtn.addEventListener('click', togglePause);
+        if (el.quitBtn) el.quitBtn.addEventListener('click', quitGame);
+        if (el.soundBtn) el.soundBtn.addEventListener('click', toggleSound);
+        if (el.pauseSoundBtn) el.pauseSoundBtn.addEventListener('click', toggleSound);
 
-    // Finger Trails
-    el.container.addEventListener('pointermove', (e) => {
-        if (!state.isPlaying) return;
-        createTrailDot(e.clientX, e.clientY);
-    });
+        updateSoundUI();
 
-    initAds();
+        // Init Audio Context on any earlier interaction too (backup)
+        document.addEventListener('click', () => {
+            try {
+                if (audio && audio.init) audio.init();
+            } catch (e) { }
+        }, { once: true });
+
+        // Finger Trails
+        if (el.container) {
+            el.container.addEventListener('pointermove', (e) => {
+                if (!state.isPlaying) return;
+                createTrailDot(e.clientX, e.clientY);
+            });
+        }
+
+        initAds();
+    } catch (e2) {
+        console.error("Critical UI Init Error:", e2);
+        alert("Game Init Error: " + e2.message);
+    }
 }
 
 function createTrailDot(x, y) {
@@ -199,7 +243,7 @@ function renderShop() {
                     updateBackground();
                 }
                 renderShop();
-                playSound('success'); // Feedback
+                audio.playSFX('success'); // Feedback
             } else if (canAfford) {
                 // Buy
                 state.coins -= item.price;
@@ -221,7 +265,7 @@ function renderShop() {
                     updateBackground();
                 }
                 renderShop();
-                playSound('success'); // Cha-ching!
+                audio.playSFX('success'); // Cha-ching!
             } else {
                 triggerHaptic('fail'); // Can't afford
             }
@@ -275,32 +319,7 @@ function triggerHaptic(type) {
     }
 }
 
-function playSound(type) {
-    if (state.isMuted || !audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    if (type === 'success') {
-        const baseFreq = 600 + (Math.min(state.score, 50) * 10);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(baseFreq * 2, audioCtx.currentTime + 0.1);
-        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
-    } else {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-        osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
-        gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
-    }
-}
+// playSound removed, use audio.playSFX() directly
 
 // Game Loop
 function startGame() {
@@ -318,6 +337,10 @@ function startGame() {
     state.currentLevel = 1;
     state.hasRevived = false; // Reset for new run
     state.targetsHit = 0;
+
+    // Start Music
+    audio.startMusic();
+    audio.tempo = 110; // Reset tempo
 
     // Cleanup any lingering decoys
     state.activeDecoys.forEach(d => d.remove());
@@ -355,7 +378,7 @@ function gameOver() {
     state.coins += earnings;
     localStorage.setItem('tapOrDie_coins', state.coins);
 
-    playSound('fail');
+    audio.playSFX('fail');
     triggerHaptic('fail');
     el.pauseBtn.classList.add('hidden');
 
@@ -448,9 +471,20 @@ function spawnTarget() {
         moveRange = Math.min(moveRange, maxAllowed);
     }
 
-    // 1. SPAWN MAIN TARGET (Always Normal)
+    // 1. DETERMINE IF BOSS LEVEL
+    // ----------------------------
+    const isBossLevel = (state.currentLevel % 5 === 0);
+    // Note: Doing every 5 levels for testing, normally 10.
+
+    if (isBossLevel) {
+        state.bossHealth = 5; // Takes 5 hits
+        // More time for boss?
+        state.timeLimit = Math.max(diff.time * 2, 2000);
+    }
+
+    // 2. SPAWN MAIN TARGET (Normal or Boss)
     // ------------------------------------
-    const mainSize = diff.size;
+    const mainSize = isBossLevel ? 200 : diff.size; // Huge boss
     const pos = getSafePosition(mainSize, moveRange, []); // No obstacles yet
     const x = pos.x;
     const y = pos.y;
@@ -464,10 +498,10 @@ function spawnTarget() {
     wrapper.style.height = '0px';
 
     const target = document.createElement('div');
-    target.className = 'target'; // Default styling (Green/Skin color)
+    target.className = isBossLevel ? 'target boss' : 'target'; // Add boss class
     target.style.width = `${mainSize}px`;
     target.style.height = `${mainSize}px`;
-    target.dataset.type = 'normal';
+    target.dataset.type = isBossLevel ? 'boss' : 'normal';
     target.addEventListener('pointerdown', onTargetHit);
 
     if (moveRange > 0) animateWrapper(wrapper, moveRange);
@@ -484,16 +518,18 @@ function spawnTarget() {
 
     // 2. SPAWN GOLD TARGET (Separate, Optional)
     // -----------------------------------------
-    // 5% chance, independent of level? Or maybe rare bonus.
+    // 5% chance. Small and hard to hit! (0.7x size)
+    // ALLOW Gold during Boss? Sure, bonus reward.
     if (Math.random() > 0.95) {
-        spawnExtraTarget('gold', diff.size, obstacles);
+        spawnExtraTarget('gold', diff.size * 0.7, obstacles);
     }
 
     // 3. SPAWN DECOY TARGET (Separate, Optional)
     // ------------------------------------------
-    // Level 3+, 30% chance
-    if (state.currentLevel >= 3 && Math.random() < 0.3) {
-        spawnExtraTarget('decoy', diff.size, obstacles);
+    // Level 3+, 30% chance. Normal size (0.9x)
+    // DISABLE Decoys during Boss Levels? Yes.
+    if (!isBossLevel && state.currentLevel >= 3 && Math.random() < 0.3) {
+        spawnExtraTarget('decoy', diff.size * 0.9, obstacles);
     }
 
     requestAnimationFrame(gameUpdate);
@@ -577,25 +613,54 @@ function onTargetHit(e) {
 
     // --- GOLD HIT ---
     if (targetType === 'gold') {
-        playSound('success');
+        audio.playSFX('gold'); // New sound
         triggerHaptic('success');
         createExplosion(e.clientX, e.clientY, '#ffd700');
-
-        // Bonus Points
         state.score += 50;
         updateUI();
-
-        // Remove just this element
         e.target.remove();
+        return;
+    }
 
-        // Optimization: Remove from activeDecoys array if we want strict tracking
-        // But cleaning up on main hit is usually enough
-        return; // CONTINUES GAME, DOES NOT RESET TIMER OR SPAWN NEW MAIN
+    // --- BOSS HIT ---
+    if (targetType === 'boss') {
+        state.bossHealth--;
+        audio.playSFX('hit'); // Need to handle this type in playSound
+        triggerHaptic('success');
+
+        // Visual Feedback (Bounce/Shake)
+        e.target.animate([
+            { transform: 'translate(-50%, -50%) scale(0.9)' },
+            { transform: 'translate(-50%, -50%) scale(1)' }
+        ], { duration: 100 });
+
+        if (state.bossHealth <= 0) {
+            // BOSS DEFEATED
+            createExplosion(e.clientX, e.clientY, '#ff00ff'); // Purple explosion
+            audio.playSFX('boss_victory'); // Big sound
+            state.score += 500; // HUGE Reward
+            state.coins += 50;
+            state.targetsHit += 5; // Skip ahead a bit?
+
+            // Force Level Up
+            const newLevel = state.currentLevel + 1;
+            state.currentLevel = newLevel;
+            updateLevelUI();
+            showLevelUpText(newLevel);
+
+            updateUI();
+
+            if (state.currentWrapper) state.currentWrapper.remove();
+            state.currentTarget = null;
+            state.currentWrapper = null;
+            spawnTarget();
+        }
+        return; // Don't run normal hit logic
     }
 
     // --- MAIN TARGET HIT ---
     if (targetType === 'normal') {
-        playSound('success');
+        audio.playSFX('success');
         triggerHaptic('success');
         createExplosion(e.clientX, e.clientY);
 
@@ -611,7 +676,7 @@ function onTargetHit(e) {
         if (newLevel > state.currentLevel) {
             state.currentLevel = newLevel;
             updateLevelUI();
-            playSound('success');
+            audio.playSFX('success');
             showLevelUpText(newLevel);
         }
 
@@ -785,14 +850,11 @@ function animateWrapper(wrapper, range) {
 }
 
 function toggleSound() {
-    state.isMuted = !state.isMuted;
-    localStorage.setItem('tapOrDie_muted', state.isMuted);
+    state.isMuted = audio.toggleMute();
     updateSoundUI();
 }
 
 function updateSoundUI() {
-    // If we want different icons for menu vs HUD, we can adjust here.
-    // Since it's just "Sound", we use Speaker symbols.
     const icon = state.isMuted ? '🔇' : '🔊';
     if (el.soundBtn) el.soundBtn.innerText = icon;
     if (el.pauseSoundBtn) el.pauseSoundBtn.innerText = icon;

@@ -232,22 +232,37 @@ body {
     background: radial-gradient(circle, #ffd700 30%, #b8860b 100%);
     box-shadow: 0 0 25px #ffd700, 0 0 50px #ffd700;
     animation: pulse-gold 1s ease-in-out infinite alternate;
-    /* Pulse looks better than spin for a circle */
     z-index: 7;
     /* Highest priority */
-    border: 2px solid #fff;
 }
 
+/* Ring (inherits from .target::after but we customize color) */
 .target.gold::after {
+    content: '';
+    /* Ensure it remains a ring, not text */
     border-color: #fff;
+    border-width: 3px;
+    animation: none;
+    /* Ring doesn't spin */
+}
+
+/* Star (New ::before element that spins) */
+.target.gold::before {
     content: '★';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
     justify-content: center;
     align-items: center;
     color: #fff;
-    font-size: 20px;
+    font-size: 24px;
+    width: 100%;
+    height: 100%;
     animation: spin 3s linear infinite;
-    /* Spin the star inside */
+    /* Only the star spins */
+    z-index: 2;
 }
 
 @keyframes pulse-danger {
@@ -549,4 +564,22 @@ button {
         transform: scale(1);
         opacity: 1;
     }
+}
+
+/* Boss Customization */
+.target.boss {
+    background: radial-gradient(circle, #aa00ff 20%, #4a0072 100%);
+    box-shadow: 0 0 30px #aa00ff, 0 0 60px #8000ff;
+    border: 3px solid #fff;
+    z-index: 8;
+}
+
+.target.boss::after {
+    content: '💀';
+    font-size: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: none;
+    animation: pulse-danger 0.3s infinite alternate;
 }
