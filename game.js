@@ -42,9 +42,28 @@ const ACHIEVEMENTS = [
     { id: 'rich', name: 'Coin Collector', goal: 1000, type: 'totalCoinsEarned', skin: 'gold_rush' }
 ];
 
+// Trails Database
+const TRAILS = [
+    { id: 'trail_default', name: 'Neon Trail', color: 'var(--skin-color)', price: 0 },
+    { id: 'trail_flame', name: 'Flame Burn', color: '#ff4500', price: 1000 },
+    { id: 'trail_electric', name: 'Volt Bolt', color: '#00f3ff', price: 2000 },
+    { id: 'trail_rainbow', name: 'Prism Pass', color: 'rainbow', price: 5000 }
+];
+
+// Missions Database (Sample of 5)
+const MISSIONS = [
+    { id: 1, name: 'First Steps', goal: 20, type: 'targets', time: 30000, reward: 100 },
+    { id: 2, name: 'Boss Hunter', goal: 1, type: 'bosses', time: 45000, reward: 250 },
+    { id: 3, name: 'Combo Master', goal: 10, type: 'combo', time: 30000, reward: 200 },
+    { id: 4, name: 'Speed Demon', goal: 15, type: 'targets', time: 15000, reward: 300 },
+    { id: 5, name: 'Gold Rush', goal: 3, type: 'gold', time: 60000, reward: 500 }
+];
+
 // State
 let state = {
     isPlaying: false,
+    currentMode: 'infinite', // 'infinite' or 'mission'
+    currentMissionId: null,
     score: 0,
     bestScore: parseInt(localStorage.getItem('tapOrDie_bestScore')) || 0,
     coins: parseInt(localStorage.getItem('tapOrDie_coins')) || 0,
@@ -52,6 +71,9 @@ let state = {
     ownedSkins: JSON.parse(localStorage.getItem('tapOrDie_ownedSkins')) || ['neon_cyan'],
     currentBgId: localStorage.getItem('tapOrDie_bg') || 'bg_default',
     ownedBgs: JSON.parse(localStorage.getItem('tapOrDie_ownedBgs')) || ['bg_default'],
+    currentTrailId: localStorage.getItem('tapOrDie_trail') || 'trail_default',
+    ownedTrails: JSON.parse(localStorage.getItem('tapOrDie_ownedTrails')) || ['trail_default'],
+    completedMissions: JSON.parse(localStorage.getItem('tapOrDie_missions')) || [],
     currentTarget: null,
     currentWrapper: null,
     targetTimerInv: null,
@@ -59,6 +81,7 @@ let state = {
     timeLimit: 0,
     animationFrameId: null,
     adMobReady: false,
+    lastFrameTime: 0,
 
     // New State
     combo: 0,
@@ -82,6 +105,12 @@ let state = {
         totalCoinsEarned: 0,
         maxCombo: 0,
         gamesPlayed: 0
+    },
+    sessionStats: {
+        targetsHit: 0,
+        bossesDefeated: 0,
+        goldHit: 0,
+        maxCombo: 0
     }
 };
 
@@ -127,18 +156,31 @@ const el = {
     shopModal: document.getElementById('shop-modal'),
     closeShopBtn: document.getElementById('close-shop'),
     skinGrid: document.getElementById('skin-grid'),
-    shopBest: document.getElementById('shop-best-score'),
+    shopCoins: document.getElementById('shop-coins-value'),
+    tabSkins: document.getElementById('tab-skins'),
+    tabTrails: document.getElementById('tab-trails'),
+    tabBgs: document.getElementById('tab-bgs'),
 
-    // Revive
-    reviveBtn: document.getElementById('revive-btn'),
-    coinsEarned: document.getElementById('coins-earned'),
     // Progression UI
     progressionBtn: document.getElementById('progression-btn-trigger'),
     progressionModal: document.getElementById('progression-modal'),
     closeProgressionBtn: document.getElementById('close-progression'),
     challengesList: document.getElementById('challenges-list'),
-    achievementsList: document.getElementById('achievements-list')
+    achievementsList: document.getElementById('achievements-list'),
+
+    // Mission UI
+    missionBtn: document.getElementById('mission-btn-trigger'),
+    missionModal: document.getElementById('mission-modal'),
+    missionGrid: document.getElementById('mission-grid'),
+    closeMissionsBtn: document.getElementById('close-missions'),
+
+    // Revive
+    reviveBtn: document.getElementById('revive-btn'),
+    coinsEarned: document.getElementById('coins-earned')
 };
+
+let currentShopTab = 'skin';
+
 
 // Initialize
 function init() {
@@ -177,9 +219,15 @@ function init() {
 
         if (el.shopBtn) el.shopBtn.addEventListener('click', openShop);
         if (el.closeShopBtn) el.closeShopBtn.addEventListener('click', closeShop);
+        if (el.tabSkins) el.tabSkins.addEventListener('click', () => { currentShopTab = 'skin'; renderShop(); });
+        if (el.tabTrails) el.tabTrails.addEventListener('click', () => { currentShopTab = 'trail'; renderShop(); });
+        if (el.tabBgs) el.tabBgs.addEventListener('click', () => { currentShopTab = 'bg'; renderShop(); });
 
         if (el.progressionBtn) el.progressionBtn.addEventListener('click', openProgression);
         if (el.closeProgressionBtn) el.closeProgressionBtn.addEventListener('click', closeProgression);
+
+        if (el.missionBtn) el.missionBtn.addEventListener('click', openMissions);
+        if (el.closeMissionsBtn) el.closeMissionsBtn.addEventListener('click', closeMissions);
 
         if (el.pauseBtn) el.pauseBtn.addEventListener('click', togglePause);
         if (el.resumeBtn) el.resumeBtn.addEventListener('click', togglePause);
@@ -243,84 +291,145 @@ function closeShop() {
 }
 
 function renderShop() {
-    el.shopBest.innerText = state.coins + ' 🪙'; // Reusing that element for Coins now
     el.skinGrid.innerHTML = '';
+    el.shopCoins.innerText = state.coins;
 
-    // Helper to render items
-    const renderItem = (item, type) => {
-        const isOwned = (type === 'skin' ? state.ownedSkins : state.ownedBgs).includes(item.id);
-        const isActive = (type === 'skin' ? state.currentSkinId : state.currentBgId) === item.id;
+    // Highlight active tab
+    el.tabSkins.style.background = currentShopTab === 'skin' ? 'var(--skin-color)' : 'rgba(255,255,255,0.1)';
+    el.tabSkins.style.color = currentShopTab === 'skin' ? '#000' : '#fff';
+    el.tabTrails.style.background = currentShopTab === 'trail' ? 'var(--skin-color)' : 'rgba(255,255,255,0.1)';
+    el.tabTrails.style.color = currentShopTab === 'trail' ? '#000' : '#fff';
+    el.tabBgs.style.background = currentShopTab === 'bg' ? 'var(--skin-color)' : 'rgba(255,255,255,0.1)';
+    el.tabBgs.style.color = currentShopTab === 'bg' ? '#000' : '#fff';
+
+    let items = [];
+    let owned = [];
+    let currentId = '';
+    let itemType = 'skin';
+
+    if (currentShopTab === 'skin') {
+        items = SKINS;
+        owned = state.ownedSkins;
+        currentId = state.currentSkinId;
+        itemType = 'skin';
+    } else if (currentShopTab === 'trail') {
+        items = TRAILS;
+        owned = state.ownedTrails;
+        currentId = state.currentTrailId;
+        itemType = 'trail';
+    } else {
+        items = BACKGROUNDS;
+        owned = state.ownedBgs;
+        currentId = state.currentBgId;
+        itemType = 'bg';
+    }
+
+    items.forEach(item => {
+        const isOwned = owned.includes(item.id);
+        const isActive = currentId === item.id;
         const canAfford = state.coins >= item.price;
 
         const div = document.createElement('div');
         div.className = `skin-item ${isActive ? 'active' : ''} ${!isOwned && !canAfford ? 'locked' : ''}`;
 
-        let statusText = '';
-        if (isActive) statusText = 'EQUIPPED';
-        else if (isOwned) statusText = 'OWNED';
-        else statusText = `${item.price} 🪙`;
+        let previewStyle = `background:${item.color.startsWith('var') ? 'var(--skin-color)' : (item.color === 'rainbow' ? 'linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)' : item.color)}`;
 
         div.innerHTML = `
-            <div class="skin-preview" style="background:${item.color}; box-shadow: 0 0 10px ${item.color}"></div>
+            <div class="skin-preview" style="${previewStyle}; box-shadow: 0 0 10px ${item.color.startsWith('var') ? 'var(--skin-color)' : (item.color === 'rainbow' ? '#fff' : item.color)}"></div>
             <div class="skin-req">${item.name}</div>
-            <div class="skin-req" style="color: ${isOwned ? '#fff' : '#ff0055'}">${statusText}</div>
+            <div class="skin-req" style="color: ${isOwned ? '#fff' : '#ff0055'}">${isActive ? 'EQUIPPED' : (isOwned ? 'OWNED' : `${item.price} 🪙`)}</div>
         `;
 
         div.onclick = () => {
             if (isOwned) {
-                // Equip
-                if (type === 'skin') {
+                if (itemType === 'skin') {
                     state.currentSkinId = item.id;
                     localStorage.setItem('tapOrDie_skin', item.id);
                     updateSkinVariables();
+                } else if (itemType === 'trail') {
+                    state.currentTrailId = item.id;
+                    localStorage.setItem('tapOrDie_trail', item.id);
                 } else {
                     state.currentBgId = item.id;
                     localStorage.setItem('tapOrDie_bg', item.id);
                     updateBackground();
                 }
                 renderShop();
-                audio.playSFX('success'); // Feedback
+                audio.playSFX('success');
             } else if (canAfford) {
-                // Buy
                 state.coins -= item.price;
                 localStorage.setItem('tapOrDie_coins', state.coins);
-
-                if (type === 'skin') {
-                    state.ownedSkins.push(item.id);
-                    localStorage.setItem('tapOrDie_ownedSkins', JSON.stringify(state.ownedSkins));
-                    // Auto equip
-                    state.currentSkinId = item.id;
-                    localStorage.setItem('tapOrDie_skin', item.id);
-                    updateSkinVariables();
-                } else {
-                    state.ownedBgs.push(item.id);
-                    localStorage.setItem('tapOrDie_ownedBgs', JSON.stringify(state.ownedBgs));
-                    // Auto equip
-                    state.currentBgId = item.id;
-                    localStorage.setItem('tapOrDie_bg', item.id);
-                    updateBackground();
-                }
+                owned.push(item.id);
+                localStorage.setItem(`tapOrDie_owned${itemType.charAt(0).toUpperCase() + itemType.slice(1)}s`, JSON.stringify(owned));
                 renderShop();
-                audio.playSFX('success'); // Cha-ching!
+                audio.playSFX('success');
             } else {
-                triggerHaptic('fail'); // Can't afford
+                triggerHaptic('fail');
             }
         };
         el.skinGrid.appendChild(div);
-    };
+    });
+}
 
-    SKINS.forEach(s => renderItem(s, 'skin'));
+function openMissions() {
+    el.missionModal.classList.remove('hidden');
+    renderMissions();
+}
 
-    // Separator
-    const sep = document.createElement('h3');
-    sep.style.color = '#fff';
-    sep.style.width = '100%';
-    sep.style.textAlign = 'center';
-    sep.style.gridColumn = '1 / -1';
-    sep.innerText = 'BACKGROUNDS';
-    el.skinGrid.appendChild(sep);
+function closeMissions() {
+    el.missionModal.classList.add('hidden');
+}
 
-    BACKGROUNDS.forEach(b => renderItem(b, 'bg'));
+function renderMissions() {
+    el.missionGrid.innerHTML = '';
+    MISSIONS.forEach(m => {
+        const isDone = state.completedMissions.includes(m.id);
+        const btn = document.createElement('div');
+        btn.className = `skin-item ${isDone ? 'active' : ''}`;
+        btn.style.height = '60px';
+        btn.innerHTML = `
+            <div style="font-size:14px; font-weight:bold;">${m.id}</div>
+            <div style="font-size:8px;">${isDone ? '★' : ''}</div>
+        `;
+        btn.addEventListener('click', () => {
+            closeMissions();
+            startMission(m.id);
+        });
+        el.missionGrid.appendChild(btn);
+    });
+}
+
+function startMission(missionId) {
+    const m = MISSIONS.find(ms => ms.id === missionId);
+    if (!m) return;
+
+    state.currentMode = 'mission';
+    state.currentMissionId = missionId;
+    state.isPlaying = true;
+    state.score = 0;
+    state.combo = 0;
+    state.targetsHit = 0;
+    state.currentLevel = 1;
+    state.hasRevived = false;
+    state.sessionStats = { targetsHit: 0, bossesDefeated: 0, goldHit: 0, maxCombo: 0 };
+    state.timeLimit = m.time;
+    state.spawnTime = performance.now();
+    state.lastFrameTime = state.spawnTime;
+
+    // UI
+    el.overlay.classList.remove('active');
+    el.score.innerText = '0';
+    el.levelValue.innerText = m.name;
+
+    // Clear Area
+    el.playArea.innerHTML = '';
+    state.activeDecoys = [];
+
+    // Special Init
+    audio.startMusic();
+    spawnTarget();
+
+    showLevelUpText(`GOAL: ${m.name}`);
 }
 
 function openProgression() {
@@ -413,7 +522,10 @@ function triggerHaptic(type) {
 // Game Loop
 function startGame() {
     state.isPlaying = true;
+    state.currentMode = 'infinite';
+    state.currentMissionId = null;
     state.score = 0;
+    state.sessionStats = { targetsHit: 0, bossesDefeated: 0, goldHit: 0, maxCombo: 0 };
     updateUI();
 
     el.overlay.classList.remove('active');
@@ -441,6 +553,10 @@ function startGame() {
 
     requestFullscreen();
     spawnTarget();
+
+    // START NEW GAME LOOP (Single source of truth)
+    if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+    state.animationFrameId = requestAnimationFrame(gameUpdate);
 }
 
 function requestFullscreen() {
@@ -476,13 +592,39 @@ function gameOver() {
     el.container.classList.add('shake');
     setTimeout(() => el.container.classList.remove('shake'), 500);
 
-    el.finalScore.innerText = state.score;
-    el.coinsEarned.innerText = earnings; // Show earnings
-    el.best.innerText = state.bestScore;
-
+    state.sessionStats.maxCombo = Math.max(state.sessionStats.maxCombo, state.combo);
     updateStats('gamesPlayed', 1);
     updateStats('maxCombo', state.combo, false);
     updateDailyProgress('maxCombo', state.combo, false);
+
+    if (state.currentMode === 'mission') {
+        const m = MISSIONS.find(ms => ms.id === state.currentMissionId);
+        let success = false;
+        if (m.type === 'targets') success = state.sessionStats.targetsHit >= m.goal;
+        else if (m.type === 'bosses') success = state.sessionStats.bossesDefeated >= m.goal;
+        else if (m.type === 'combo') success = state.sessionStats.maxCombo >= m.goal;
+        else if (m.type === 'gold') success = state.sessionStats.goldHit >= m.goal;
+
+        if (success) {
+            if (!state.completedMissions.includes(m.id)) {
+                state.completedMissions.push(m.id);
+                localStorage.setItem('tapOrDie_missions', JSON.stringify(state.completedMissions));
+                state.coins += m.reward;
+                localStorage.setItem('tapOrDie_coins', state.coins);
+                showLevelUpText(`MISSION COMPLETE! +${m.reward}🪙`);
+            } else {
+                showLevelUpText(`MISSION COMPLETE!`);
+            }
+        } else {
+            showLevelUpText(`MISSION FAILED`);
+        }
+    }
+    state.currentMode = 'infinite';
+    state.currentMissionId = null;
+
+    el.finalScore.innerText = state.score;
+    el.coinsEarned.innerText = earnings; // Show earnings
+    el.best.innerText = state.bestScore;
 
     // Revive Availability
     if (!state.hasRevived && state.coins >= 100) {
@@ -644,8 +786,6 @@ function spawnTarget() {
         const type = types[Math.floor(Math.random() * types.length)];
         spawnExtraTarget(type, diff.size * 0.8, obstacles);
     }
-
-    requestAnimationFrame(gameUpdate);
 }
 
 // Helper to find safe position
@@ -730,29 +870,43 @@ function isPowerUpActive(type) {
     return state.activePowerUps[type] > performance.now();
 }
 
-function spawnBossClone(x, y) {
+function spawnBossClone(relX, relY) {
     const size = 100;
+    const padding = 20;
+    const containerW = el.playArea.clientWidth;
+    const containerH = el.playArea.clientHeight;
+
+    // Relative to playArea
+    let x = relX + (Math.random() - 0.5) * 150;
+    let y = relY + (Math.random() - 0.5) * 150;
+
+    // Clamp inside container
+    x = Math.max(padding, Math.min(x, containerW - size - padding));
+    y = Math.max(padding, Math.min(y, containerH - size - padding));
+
     const extra = document.createElement('div');
     extra.className = 'target boss boss-splitter';
     extra.style.width = `${size}px`;
     extra.style.height = `${size}px`;
-    extra.style.left = `${x + (Math.random() - 0.5) * 100}px`;
-    extra.style.top = `${y + (Math.random() - 0.5) * 100}px`;
+    extra.style.left = `${x}px`;
+    extra.style.top = `${y}px`;
     extra.dataset.type = 'boss';
     extra.dataset.bossType = 'splitter';
     extra.dataset.isClone = 'true';
     extra.addEventListener('pointerdown', onTargetHit);
+
     el.playArea.appendChild(extra);
     state.activeDecoys.push(extra);
-    state.bossHealth = 1; // Clones take 1 hit
 }
 
 // Progression logic
 function updateStats(key, value, isCumulative = true) {
     if (isCumulative) {
         state.stats[key] = (state.stats[key] || 0) + value;
+        if (state.sessionStats[key] !== undefined) state.sessionStats[key] += value;
     } else {
         state.stats[key] = Math.max(state.stats[key] || 0, value);
+        if (state.sessionStats[key] !== undefined) state.sessionStats[key] = Math.max(state.sessionStats[key], value);
     }
     localStorage.setItem('tapOrDie_stats', JSON.stringify(state.stats));
     checkAchievements();
@@ -821,6 +975,7 @@ function onTargetHit(e) {
         triggerHaptic('success');
         createExplosion(e.clientX, e.clientY, '#ffd700');
         state.score += 50;
+        state.sessionStats.goldHit++;
         updateUI();
         e.target.remove();
         return;
@@ -848,11 +1003,20 @@ function onTargetHit(e) {
 
         if (state.bossHealth <= 0) {
             if (e.target.dataset.bossType === 'splitter' && !e.target.dataset.isClone) {
+                // Split logic: reset timer for the clones!
+                state.spawnTime = performance.now();
+                state.timeLimit = Math.max(state.timeLimit * 0.7, 2000); // Give some time for clones
+                state.bossHealth = 2; // Need to hit both clones
+
+                // Get playArea offset to convert clientX to relative X
+                const rect = el.playArea.getBoundingClientRect();
+
                 // Spawn 2 clones
                 for (let i = 0; i < 2; i++) {
-                    spawnBossClone(e.clientX, e.clientY);
+                    spawnBossClone(e.clientX - rect.left, e.clientY - rect.top);
                 }
                 e.target.remove();
+                state.currentTarget = null;
                 return;
             }
 
@@ -866,6 +1030,7 @@ function onTargetHit(e) {
             state.coins += coinBonus;
             state.stats.totalCoinsEarned += coinBonus;
             state.stats.totalBossesDefeated++;
+            state.sessionStats.bossesDefeated++;
             updateDailyProgress('bossesDefeated', 1);
             state.targetsHit += 5; // Skip ahead a bit?
 
@@ -898,7 +1063,7 @@ function onTargetHit(e) {
 
         state.score += multiplier;
         state.targetsHit++;
-        state.stats.targetsHit++;
+        state.sessionStats.targetsHit++;
         updateDailyProgress('targetsHit', 1);
         updateStats('totalTargets', 1);
 
@@ -954,6 +1119,8 @@ function showLevelUpText(level) {
 }
 
 function gameUpdate(timestamp) {
+    if (!state.isPlaying || state.isPaused) return;
+
     const now = performance.now();
     if (!state.lastFrameTime) state.lastFrameTime = now;
     let delta = now - state.lastFrameTime;
@@ -974,11 +1141,14 @@ function gameUpdate(timestamp) {
     }
 
     const pct = remaining / state.timeLimit;
-    state.currentTarget.style.transform = `translate(-50%, -50%) scale(${pct})`;
 
-    if (pct < 0.3) {
-        state.currentTarget.style.boxShadow = `0 0 30px #ff0055`;
-        state.currentTarget.style.backgroundColor = `#ff0055`;
+    if (state.currentTarget) {
+        state.currentTarget.style.transform = `translate(-50%, -50%) scale(${pct})`;
+
+        if (pct < 0.3) {
+            state.currentTarget.style.boxShadow = `0 0 30px #ff0055`;
+            state.currentTarget.style.backgroundColor = `#ff0055`;
+        }
     }
 
     state.animationFrameId = requestAnimationFrame(gameUpdate);
@@ -1042,6 +1212,7 @@ function updateComboUI() {
     if (state.combo > 1) {
         el.comboContainer.classList.remove('hidden');
         el.comboValue.innerText = `x${state.combo}`;
+        if (state.combo > state.sessionStats.maxCombo) state.sessionStats.maxCombo = state.combo;
 
         // Fever Check
         if (state.combo >= 25 && !state.isFever) { // Lowered to 25 for easier testing

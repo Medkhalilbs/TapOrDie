@@ -59,6 +59,57 @@ body {
     z-index: 100;
 }
 
+.trail-flame {
+    background: #ff4500 !important;
+    box-shadow: 0 0 15px #ff4500, 0 0 5px #ffd700 !important;
+    width: 8px !important;
+    height: 8px !important;
+}
+
+.trail-electric {
+    background: #00f3ff !important;
+    box-shadow: 0 0 20px #00f3ff, 0 0 10px #fff !important;
+    width: 4px !important;
+    height: 12px !important;
+    transform: rotate(45deg);
+}
+
+.trail-rainbow {
+    animation: fadeOut 0.5s linear forwards, rainbow-cycle 1s linear infinite !important;
+}
+
+@keyframes rainbow-cycle {
+    0% {
+        background: #ff0000;
+        box-shadow: 0 0 10px #ff0000;
+    }
+
+    20% {
+        background: #ffd700;
+        box-shadow: 0 0 10px #ffd700;
+    }
+
+    40% {
+        background: #39ff14;
+        box-shadow: 0 0 10px #39ff14;
+    }
+
+    60% {
+        background: #00f3ff;
+        box-shadow: 0 0 10px #00f3ff;
+    }
+
+    80% {
+        background: #9d00ff;
+        box-shadow: 0 0 10px #9d00ff;
+    }
+
+    100% {
+        background: #ff00ff;
+        box-shadow: 0 0 10px #ff00ff;
+    }
+}
+
 @keyframes fadeOut {
     to {
         transform: scale(0);
@@ -401,7 +452,8 @@ button {
 }
 
 #shop-modal,
-#progression-modal {
+#progression-modal,
+#mission-modal {
     position: absolute;
     top: 0;
     left: 0;
@@ -412,6 +464,14 @@ button {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.shop-tabs button {
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 5px;
+    border: none;
+    transition: all 0.2s ease;
 }
 
 .shop-content {

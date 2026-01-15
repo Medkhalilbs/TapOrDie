@@ -74,9 +74,12 @@
                     <button id="revive-btn" class="secondary-btn"
                         style="margin-bottom: 10px; border: 1px solid #ffd700; color: #ffd700;">REVIVE (100 🪙)</button>
                 </div>
-                <button id="start-btn">TAP TO START</button>
-                <div style="display: flex; gap: 10px; width: 100%; max-width: 250px; flex-wrap: wrap;">
-                    <button id="shop-btn-trigger" class="secondary-btn" style="flex: 1;">SKINS</button>
+                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 250px;">
+                    <button id="start-btn" style="background: var(--skin-color); color: #000;">INFINITE MODE</button>
+                    <button id="mission-btn-trigger" class="secondary-btn">MISSION MODE</button>
+                </div>
+                <div style="display: flex; gap: 10px; width: 100%; max-width: 250px; margin-top: 10px;">
+                    <button id="shop-btn-trigger" class="secondary-btn" style="flex: 1;">SHOP</button>
                     <button id="progression-btn-trigger" class="secondary-btn" style="flex: 1;">PROGRESS</button>
                     <button id="sound-btn" class="secondary-btn" style="flex: 1; min-width: 60px;">🔊</button>
                 </div>
@@ -86,8 +89,13 @@
         <!-- Shop Modal -->
         <div id="shop-modal" class="hidden">
             <div class="shop-content">
-                <h2>SKIN SHOP</h2>
-                <p class="shop-balance">BEST SCORE: <span id="shop-best-score">0</span></p>
+                <h2>SHOP</h2>
+                <div class="shop-tabs" style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button id="tab-skins" class="secondary-btn" style="flex:1; padding:5px;">SKINS</button>
+                    <button id="tab-trails" class="secondary-btn" style="flex:1; padding:5px;">TRAILS</button>
+                    <button id="tab-bgs" class="secondary-btn" style="flex:1; padding:5px;">BGS</button>
+                </div>
+                <p class="shop-balance" style="margin-bottom:10px;">COINS: <span id="shop-coins-value">0</span></p>
                 <div id="skin-grid">
                     <!-- Skins injected by JS -->
                 </div>
@@ -112,6 +120,18 @@
                     <!-- Achievements injected by JS -->
                 </div>
                 <button id="close-progression">CLOSE</button>
+            </div>
+        </div>
+
+        <!-- Missions Modal -->
+        <div id="mission-modal" class="hidden">
+            <div class="shop-content">
+                <h2>MISSIONS</h2>
+                <div id="mission-grid"
+                    style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; overflow-y:auto; padding:10px; max-height: 300px;">
+                    <!-- Missions injected by JS -->
+                </div>
+                <button id="close-missions">CLOSE</button>
             </div>
         </div>
     </div>
