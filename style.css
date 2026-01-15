@@ -212,6 +212,9 @@ body {
 .target.decoy {
     background: var(--danger-color);
     box-shadow: 0 0 20px var(--danger-color);
+    animation: pulse-danger 0.6s ease-in-out infinite alternate;
+    z-index: 6;
+    /* On top of normal targets */
 }
 
 .target.decoy::after {
@@ -226,8 +229,13 @@ body {
 }
 
 .target.gold {
-    background: #ffd700;
-    box-shadow: 0 0 25px #ffd700;
+    background: radial-gradient(circle, #ffd700 30%, #b8860b 100%);
+    box-shadow: 0 0 25px #ffd700, 0 0 50px #ffd700;
+    animation: pulse-gold 1s ease-in-out infinite alternate;
+    /* Pulse looks better than spin for a circle */
+    z-index: 7;
+    /* Highest priority */
+    border: 2px solid #fff;
 }
 
 .target.gold::after {
@@ -238,6 +246,42 @@ body {
     align-items: center;
     color: #fff;
     font-size: 20px;
+    animation: spin 3s linear infinite;
+    /* Spin the star inside */
+}
+
+@keyframes pulse-danger {
+    from {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 20px var(--danger-color);
+    }
+
+    to {
+        transform: translate(-50%, -50%) scale(1.1);
+        box-shadow: 0 0 40px var(--danger-color);
+    }
+}
+
+@keyframes pulse-gold {
+    from {
+        transform: translate(-50%, -50%) scale(1);
+        filter: brightness(1);
+    }
+
+    to {
+        transform: translate(-50%, -50%) scale(1.1);
+        filter: brightness(1.3);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* UI Overlay */

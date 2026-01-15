@@ -33,7 +33,6 @@ const BACKGROUNDS = [
 let state = {
     isPlaying: false,
     score: 0,
-    score: 0,
     bestScore: parseInt(localStorage.getItem('tapOrDie_bestScore')) || 0,
     coins: parseInt(localStorage.getItem('tapOrDie_coins')) || 0,
     currentSkinId: localStorage.getItem('tapOrDie_skin') || 'neon_cyan',
@@ -52,13 +51,12 @@ let state = {
     combo: 0,
     isPaused: false,
     pauseStartTime: 0,
-    combo: 0,
-    isPaused: false,
-    pauseStartTime: 0,
     currentLevel: 1,
     isMuted: localStorage.getItem('tapOrDie_muted') === 'true', // Default false
     isFever: false,
-    hasRevived: false
+    hasRevived: false,
+    targetsHit: 0,
+    activeDecoys: []
 };
 
 
@@ -316,8 +314,15 @@ function startGame() {
 
     el.pauseBtn.classList.remove('hidden');
     state.combo = 0;
+    state.combo = 0;
     state.currentLevel = 1;
     state.hasRevived = false; // Reset for new run
+    state.targetsHit = 0;
+
+    // Cleanup any lingering decoys
+    state.activeDecoys.forEach(d => d.remove());
+    state.activeDecoys = [];
+
     updateLevelUI();
     updateComboUI();
 
@@ -427,76 +432,45 @@ function spawnTarget() {
     state.timeLimit = diff.time;
     state.spawnTime = performance.now();
 
+    // Cleanup all existing targets
     if (state.currentWrapper) state.currentWrapper.remove();
+    state.activeDecoys.forEach(d => d.remove());
+    state.activeDecoys = [];
 
     const containerW = el.playArea.clientWidth;
     const containerH = el.playArea.clientHeight;
 
-    // logic for movement range
+    // Movement Range for Main Target
     let moveRange = 0;
     if (state.currentLevel >= 2) {
         moveRange = 50 * Math.min(state.currentLevel, 5);
-        // Constrain movement on small screens (max 30% of dimension)
         const maxAllowed = Math.min(containerW, containerH) * 0.3;
         moveRange = Math.min(moveRange, maxAllowed);
     }
 
-    const maxHalfMove = moveRange / 2;
-    const topSafeZone = 120; // safe from HUD
-    const radius = diff.size / 2;
-    const basePad = radius + 10;
+    // 1. SPAWN MAIN TARGET (Always Normal)
+    // ------------------------------------
+    const mainSize = diff.size;
+    const pos = getSafePosition(mainSize, moveRange, []); // No obstacles yet
+    const x = pos.x;
+    const y = pos.y;
 
-    // Total padding: Base + Movement to ensure it stays on screen
-    const pad = basePad + maxHalfMove;
-
-    const minX = pad;
-    const maxX = containerW - pad;
-    // Handle small screens where padding > container
-    const x = minX < maxX ? Math.random() * (maxX - minX) + minX : containerW / 2;
-
-    const minY = pad + topSafeZone;
-    const maxY = containerH - pad;
-    const y = minY < maxY ? Math.random() * (maxY - minY) + minY : (minY + maxY) / 2;
-
-    // Create Wrapper for positioning/movement
+    // Create Wrapper
     const wrapper = document.createElement('div');
     wrapper.style.position = 'absolute';
     wrapper.style.left = `${x}px`;
     wrapper.style.top = `${y}px`;
     wrapper.style.width = '0px';
-    wrapper.style.height = '0px'; // Wrapper acts as anchor
+    wrapper.style.height = '0px';
 
-    // Create Target for scaling
     const target = document.createElement('div');
-    target.className = 'target';
-    target.style.width = `${diff.size}px`;
-    target.style.height = `${diff.size}px`;
-    // target has transform: translate(-50%, -50%) in CSS so it centers on wrapper
-
-    // Moving Targets Logic (Level 2+)
-    if (moveRange > 0) {
-        animateWrapper(wrapper, moveRange);
-    }
-
-    // Determine Type: Normal, Decoy (10% chance if Level > 2), Gold (5% chance)
-    let type = 'normal';
-    const rand = Math.random();
-
-    // Decoys only start spawning after level 3 to ease player in
-    if (state.currentLevel >= 3 && rand < 0.1) {
-        type = 'decoy';
-    } else if (rand > 0.95) {
-        type = 'gold';
-    }
-
-    if (type === 'decoy') {
-        target.classList.add('decoy');
-    } else if (type === 'gold') {
-        target.classList.add('gold');
-    }
-
-    target.dataset.type = type;
+    target.className = 'target'; // Default styling (Green/Skin color)
+    target.style.width = `${mainSize}px`;
+    target.style.height = `${mainSize}px`;
+    target.dataset.type = 'normal';
     target.addEventListener('pointerdown', onTargetHit);
+
+    if (moveRange > 0) animateWrapper(wrapper, moveRange);
 
     wrapper.appendChild(target);
     el.playArea.appendChild(wrapper);
@@ -504,63 +478,149 @@ function spawnTarget() {
     state.currentTarget = target;
     state.currentWrapper = wrapper;
 
+    // Keep track of obstacles for subsequent spawns
+    // We treat the main target's area as an obstacle
+    const obstacles = [{ x, y, size: mainSize + moveRange }]; // Include moveRange in safety buffer?
+
+    // 2. SPAWN GOLD TARGET (Separate, Optional)
+    // -----------------------------------------
+    // 5% chance, independent of level? Or maybe rare bonus.
+    if (Math.random() > 0.95) {
+        spawnExtraTarget('gold', diff.size, obstacles);
+    }
+
+    // 3. SPAWN DECOY TARGET (Separate, Optional)
+    // ------------------------------------------
+    // Level 3+, 30% chance
+    if (state.currentLevel >= 3 && Math.random() < 0.3) {
+        spawnExtraTarget('decoy', diff.size, obstacles);
+    }
+
     requestAnimationFrame(gameUpdate);
 }
+
+// Helper to find safe position
+function getSafePosition(size, moveRange, obstacles) {
+    const containerW = el.playArea.clientWidth;
+    const containerH = el.playArea.clientHeight;
+    const topSafeZone = 120;
+    const pad = size / 2 + 10 + (moveRange / 2); // Include movement in padding
+
+    let bestX = containerW / 2;
+    let bestY = containerH / 2;
+    let safe = false;
+    let attempts = 0;
+
+    while (!safe && attempts < 15) {
+        attempts++;
+        const x = Math.random() * (containerW - pad * 2) + pad;
+        const minY = pad + topSafeZone;
+        const maxY = containerH - pad;
+        const y = minY < maxY ? Math.random() * (maxY - minY) + minY : (minY + maxY) / 2;
+
+        // Check collision with obstacles
+        let collision = false;
+        for (const obs of obstacles) {
+            const dist = Math.sqrt(Math.pow(x - obs.x, 2) + Math.pow(y - obs.y, 2));
+            const minSafeDist = (size + obs.size) / 2 + 20; // 20px margin
+            if (dist < minSafeDist) {
+                collision = true;
+                break;
+            }
+        }
+
+        if (!collision) {
+            bestX = x;
+            bestY = y;
+            safe = true;
+        }
+    }
+
+    return { x: bestX, y: bestY };
+}
+
+function spawnExtraTarget(type, size, obstacles) {
+    const pos = getSafePosition(size, 0, obstacles); // Extras don't move yet
+
+    const extra = document.createElement('div');
+    extra.className = `target ${type}`;
+    extra.style.width = `${size}px`;
+    extra.style.height = `${size}px`;
+    extra.style.left = `${pos.x}px`;
+    extra.style.top = `${pos.y}px`;
+    extra.dataset.type = type; // 'gold' or 'decoy'
+
+    // Add to obstacles for next one
+    obstacles.push({ x: pos.x, y: pos.y, size: size });
+
+    extra.addEventListener('pointerdown', onTargetHit);
+
+    el.playArea.appendChild(extra);
+    state.activeDecoys.push(extra); // Reuse this array for all extras to clean them up easily
+}
+
 
 function onTargetHit(e) {
     if (!state.isPlaying) return;
     e.preventDefault();
+    e.stopPropagation(); // Prevent clicking through
 
     const targetType = e.target.dataset.type;
 
+    // --- DECOY HIT ---
     if (targetType === 'decoy') {
-        // Hitting a decoy is instant death
         triggerHaptic('fail');
-        createExplosion(e.clientX, e.clientY, '#ff0000'); // Red explosion
+        createExplosion(e.clientX, e.clientY, '#ff0000');
         gameOver();
         return;
     }
 
-    // Success hit (Normal or Gold)
-    playSound('success');
-    triggerHaptic('success');
-    createExplosion(e.clientX, e.clientY);
-
-    // Combo Logic
-    state.combo++;
-    let multiplier = 1 + Math.floor(state.combo / 10);
-
+    // --- GOLD HIT ---
     if (targetType === 'gold') {
-        playSound('success'); // Maybe a double sound or special chime?
-        multiplier += 50; // Big bonus
-        createExplosion(e.clientX, e.clientY, '#ffd700'); // Gold explosion
+        playSound('success');
+        triggerHaptic('success');
+        createExplosion(e.clientX, e.clientY, '#ffd700');
+
+        // Bonus Points
+        state.score += 50;
+        updateUI();
+
+        // Remove just this element
+        e.target.remove();
+
+        // Optimization: Remove from activeDecoys array if we want strict tracking
+        // But cleaning up on main hit is usually enough
+        return; // CONTINUES GAME, DOES NOT RESET TIMER OR SPAWN NEW MAIN
     }
 
-    if (state.isFever) {
-        multiplier *= 2; // Double points in fever
+    // --- MAIN TARGET HIT ---
+    if (targetType === 'normal') {
+        playSound('success');
+        triggerHaptic('success');
+        createExplosion(e.clientX, e.clientY);
+
+        state.combo++;
+        let multiplier = 1 + Math.floor(state.combo / 10);
+        if (state.isFever) multiplier *= 2;
+
+        state.score += multiplier;
+        state.targetsHit++;
+
+        // Level Up Logic (Every 5 hits)
+        const newLevel = Math.floor(state.targetsHit / 5) + 1;
+        if (newLevel > state.currentLevel) {
+            state.currentLevel = newLevel;
+            updateLevelUI();
+            playSound('success');
+            showLevelUpText(newLevel);
+        }
+
+        updateComboUI();
+        updateUI();
+
+        // Respawn (Clears everything)
+        spawnTarget();
     }
-
-    state.score += multiplier;
-
-    // Level Up Logic
-    // Every 10 points = 1 Level increase (example)
-    const newLevel = Math.floor(state.score / 10) + 1;
-    if (newLevel > state.currentLevel) {
-        state.currentLevel = newLevel;
-        updateLevelUI();
-        playSound('success'); // Extra chime?
-        // Optional: Show Level Up text
-        showLevelUpText(newLevel);
-    }
-
-    updateComboUI();
-    updateUI();
-
-    if (state.currentWrapper) state.currentWrapper.remove();
-    state.currentTarget = null;
-    state.currentWrapper = null;
-
-    spawnTarget();
 }
 
 function showLevelUpText(level) {
