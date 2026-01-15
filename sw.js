@@ -1,9 +1,8 @@
-const CACHE_NAME = 'tap-or-die-v1';
+const CACHE_NAME = 'tap-or-die-v3';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
-    './audio.js',
     './game.js',
     './manifest.json',
     './assets/icon.png'
