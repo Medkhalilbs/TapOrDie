@@ -400,8 +400,8 @@ button {
     display: none !important;
 }
 
-/* Shop Modal */
-#shop-modal {
+#shop-modal,
+#progression-modal {
     position: absolute;
     top: 0;
     left: 0;
@@ -505,7 +505,6 @@ button {
     z-index: 100;
     cursor: pointer;
     margin-top: 50px;
-    /* Push it down a bit to avoid HUD overlap if needed, or adjust HUD */
 }
 
 /* Pause Menu */
@@ -582,4 +581,59 @@ button {
     align-items: center;
     border: none;
     animation: pulse-danger 0.3s infinite alternate;
+}
+
+/* Additional Elements */
+.target.gold {
+    background: radial-gradient(circle, #ffd700, #b8860b) !important;
+    box-shadow: 0 0 20px #ffd700 !important;
+}
+
+.target.decoy {
+    background: radial-gradient(circle, #ff0000, #550000) !important;
+    box-shadow: 0 0 20px #ff0000 !important;
+    border: 2px solid #fff !important;
+}
+
+/* Power-Ups */
+.target.time_freeze {
+    background: radial-gradient(circle, #00d4ff, #0055ff) !important;
+    box-shadow: 0 0 20px #00d4ff !important;
+}
+
+.target.double_coins {
+    background: radial-gradient(circle, #ffeb3b, #fbc02d) !important;
+    box-shadow: 0 0 20px #ffd700 !important;
+}
+
+.target.magnet {
+    background: radial-gradient(circle, #e91e63, #880e4f) !important;
+    box-shadow: 0 0 20px #e91e63 !important;
+}
+
+/* Active State Visuals */
+.pu-time_freeze #game-container {
+    filter: saturate(0.5) contrast(1.2) hue-rotate(180deg);
+    transition: filter 0.5s;
+}
+
+.pu-double_coins #score-value {
+    color: #ffd700 !important;
+    text-shadow: 0 0 20px #ffd700 !important;
+}
+
+.pu-magnet .target.normal {
+    border: 4px solid #e91e63 !important;
+    box-shadow: 0 0 40px #e91e63 !important;
+}
+
+/* Boss Variants */
+.target.boss.boss-fast {
+    border-color: #00f3ff !important;
+    box-shadow: 0 0 30px #00f3ff !important;
+}
+
+.target.boss.boss-splitter {
+    border-color: #ffd700 !important;
+    background: radial-gradient(circle, #ff00ff 20%, #4a0072 100%) !important;
 }

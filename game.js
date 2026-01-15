@@ -29,6 +29,19 @@ const BACKGROUNDS = [
     { id: 'bg_pitch', name: 'Abyss', color: '#000000', price: 5000 }
 ];
 
+// Progression Data
+const CHALLENGES = [
+    { id: 'daily_targets', name: 'Hit 50 total targets', goal: 50, type: 'targetsHit', reward: 50 },
+    { id: 'daily_boss', name: 'Defeat 1 boss', goal: 1, type: 'bossesDefeated', reward: 100 },
+    { id: 'daily_combo', name: 'Reach x15 Combo', goal: 15, type: 'maxCombo', reward: 75 }
+];
+
+const ACHIEVEMENTS = [
+    { id: 'novice', name: 'Novice', goal: 100, type: 'totalTargets', skin: 'neon_cyan' },
+    { id: 'slayer', name: 'Boss Slayer', goal: 5, type: 'totalBossesDefeated', skin: 'blood_red' },
+    { id: 'rich', name: 'Coin Collector', goal: 1000, type: 'totalCoinsEarned', skin: 'gold_rush' }
+];
+
 // State
 let state = {
     isPlaying: false,
@@ -56,7 +69,20 @@ let state = {
     isFever: false,
     hasRevived: false,
     targetsHit: 0,
-    activeDecoys: []
+    activeDecoys: [],
+    // Power-Up State
+    activePowerUps: {
+        time_freeze: 0, // End timestamp
+        double_coins: 0,
+        magnet: 0
+    },
+    // Progression Stats
+    stats: JSON.parse(localStorage.getItem('tapOrDie_stats')) || {
+        totalBossesDefeated: 0,
+        totalCoinsEarned: 0,
+        maxCombo: 0,
+        gamesPlayed: 0
+    }
 };
 
 
@@ -105,7 +131,13 @@ const el = {
 
     // Revive
     reviveBtn: document.getElementById('revive-btn'),
-    coinsEarned: document.getElementById('coins-earned')
+    coinsEarned: document.getElementById('coins-earned'),
+    // Progression UI
+    progressionBtn: document.getElementById('progression-btn-trigger'),
+    progressionModal: document.getElementById('progression-modal'),
+    closeProgressionBtn: document.getElementById('close-progression'),
+    challengesList: document.getElementById('challenges-list'),
+    achievementsList: document.getElementById('achievements-list')
 };
 
 // Initialize
@@ -146,6 +178,9 @@ function init() {
         if (el.shopBtn) el.shopBtn.addEventListener('click', openShop);
         if (el.closeShopBtn) el.closeShopBtn.addEventListener('click', closeShop);
 
+        if (el.progressionBtn) el.progressionBtn.addEventListener('click', openProgression);
+        if (el.closeProgressionBtn) el.closeProgressionBtn.addEventListener('click', closeProgression);
+
         if (el.pauseBtn) el.pauseBtn.addEventListener('click', togglePause);
         if (el.resumeBtn) el.resumeBtn.addEventListener('click', togglePause);
         if (el.quitBtn) el.quitBtn.addEventListener('click', quitGame);
@@ -169,6 +204,7 @@ function init() {
             });
         }
 
+        checkDailyChallenges();
         initAds();
     } catch (e2) {
         console.error("Critical UI Init Error:", e2);
@@ -286,6 +322,59 @@ function renderShop() {
 
     BACKGROUNDS.forEach(b => renderItem(b, 'bg'));
 }
+
+function openProgression() {
+    el.progressionModal.classList.remove('hidden');
+    renderProgression();
+}
+
+function closeProgression() {
+    el.progressionModal.classList.add('hidden');
+}
+
+function renderProgression() {
+    // Render Challenges
+    el.challengesList.innerHTML = '';
+    CHALLENGES.forEach(ch => {
+        const isComp = localStorage.getItem(`tapOrDie_ch_${ch.id}_completed`) === new Date().toDateString();
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.style.background = '#222';
+        div.style.borderRadius = '5px';
+        div.style.marginBottom = '5px';
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; flex-direction:column;">
+                    <span style="color:#fff; font-size:11px;">${ch.name}</span>
+                    <span style="color:#ffd700; font-size:9px;">+${ch.reward} 🪙</span>
+                </div>
+                <span style="color:${isComp ? '#39ff14' : '#ff0055'}; font-weight:bold;">${isComp ? 'DONE' : `${state.dailyProgress[ch.type]}/${ch.goal}`}</span>
+            </div>
+        `;
+        el.challengesList.appendChild(div);
+    });
+
+    // Render Achievements
+    el.achievementsList.innerHTML = '';
+    ACHIEVEMENTS.forEach(ach => {
+        const isOwned = state.ownedSkins.includes(ach.skin);
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.style.background = '#222';
+        div.style.borderRadius = '5px';
+        div.style.marginBottom = '5px';
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; flex-direction:column;">
+                    <span style="color:#fff; font-size:11px;">${ach.name}</span>
+                    <span style="color:#888; font-size:9px;">Skin: ${ach.skin.replace('_', ' ')}</span>
+                </div>
+                <span style="color:${isOwned ? '#ffd700' : '#888'}; font-weight:bold;">${isOwned ? 'UNLOCKED' : `${state.stats[ach.type] || 0}/${ach.goal}`}</span>
+            </div>
+        `;
+        el.achievementsList.appendChild(div);
+    });
+}
 function updateBackground() {
     const bg = BACKGROUNDS.find(b => b.id === state.currentBgId) || BACKGROUNDS[0];
     document.documentElement.style.setProperty('--bg-color', bg.color);
@@ -341,6 +430,7 @@ function startGame() {
     // Start Music
     audio.startMusic();
     audio.tempo = 110; // Reset tempo
+    state.bossType = null; // Reset boss type
 
     // Cleanup any lingering decoys
     state.activeDecoys.forEach(d => d.remove());
@@ -389,6 +479,10 @@ function gameOver() {
     el.finalScore.innerText = state.score;
     el.coinsEarned.innerText = earnings; // Show earnings
     el.best.innerText = state.bestScore;
+
+    updateStats('gamesPlayed', 1);
+    updateStats('maxCombo', state.combo, false);
+    updateDailyProgress('maxCombo', state.combo, false);
 
     // Revive Availability
     if (!state.hasRevived && state.coins >= 100) {
@@ -454,6 +548,7 @@ function spawnTarget() {
     const diff = getDifficulty();
     state.timeLimit = diff.time;
     state.spawnTime = performance.now();
+    state.lastFrameTime = state.spawnTime;
 
     // Cleanup all existing targets
     if (state.currentWrapper) state.currentWrapper.remove();
@@ -474,10 +569,13 @@ function spawnTarget() {
     // 1. DETERMINE IF BOSS LEVEL
     // ----------------------------
     const isBossLevel = (state.currentLevel % 5 === 0);
-    // Note: Doing every 5 levels for testing, normally 10.
+    const bossTypes = ['normal', 'fast', 'splitter'];
+    if (isBossLevel && !state.bossType) {
+        state.bossType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+    }
 
     if (isBossLevel) {
-        state.bossHealth = 5; // Takes 5 hits
+        state.bossHealth = state.bossType === 'splitter' ? 3 : 5;
         // More time for boss?
         state.timeLimit = Math.max(diff.time * 2, 2000);
     }
@@ -498,13 +596,19 @@ function spawnTarget() {
     wrapper.style.height = '0px';
 
     const target = document.createElement('div');
-    target.className = isBossLevel ? 'target boss' : 'target'; // Add boss class
+    target.className = isBossLevel ? `target boss boss-${state.bossType}` : 'target';
     target.style.width = `${mainSize}px`;
     target.style.height = `${mainSize}px`;
     target.dataset.type = isBossLevel ? 'boss' : 'normal';
+    target.dataset.bossType = state.bossType;
     target.addEventListener('pointerdown', onTargetHit);
 
-    if (moveRange > 0) animateWrapper(wrapper, moveRange);
+    let speedMult = 1;
+    if (state.bossType === 'fast') {
+        moveRange *= 1.5;
+        speedMult = 0.5; // Faster duration
+    }
+    if (moveRange > 0) animateWrapper(wrapper, moveRange, speedMult);
 
     wrapper.appendChild(target);
     el.playArea.appendChild(wrapper);
@@ -530,6 +634,15 @@ function spawnTarget() {
     // DISABLE Decoys during Boss Levels? Yes.
     if (!isBossLevel && state.currentLevel >= 3 && Math.random() < 0.3) {
         spawnExtraTarget('decoy', diff.size * 0.9, obstacles);
+    }
+
+    // 4. SPAWN POWER-UP (Optional)
+    // ----------------------------
+    // 10% chance if Level 5+
+    if (state.currentLevel >= 5 && Math.random() > 0.9) {
+        const types = ['time_freeze', 'double_coins', 'magnet'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        spawnExtraTarget(type, diff.size * 0.8, obstacles);
     }
 
     requestAnimationFrame(gameUpdate);
@@ -592,7 +705,98 @@ function spawnExtraTarget(type, size, obstacles) {
     extra.addEventListener('pointerdown', onTargetHit);
 
     el.playArea.appendChild(extra);
-    state.activeDecoys.push(extra); // Reuse this array for all extras to clean them up easily
+    state.activeDecoys.push(extra);
+}
+
+function activatePowerUp(type) {
+    const duration = 5000; // 5 seconds
+    state.activePowerUps[type] = performance.now() + duration;
+
+    // Visual Feedback
+    el.container.classList.add(`pu-${type}`);
+    audio.playSFX('gold'); // Use gold chime for PU activation
+
+    // UI Indicator (Generic for now)
+    showLevelUpText(type.replace('_', ' ').toUpperCase());
+
+    setTimeout(() => {
+        if (performance.now() >= state.activePowerUps[type]) {
+            el.container.classList.remove(`pu-${type}`);
+        }
+    }, duration);
+}
+
+function isPowerUpActive(type) {
+    return state.activePowerUps[type] > performance.now();
+}
+
+function spawnBossClone(x, y) {
+    const size = 100;
+    const extra = document.createElement('div');
+    extra.className = 'target boss boss-splitter';
+    extra.style.width = `${size}px`;
+    extra.style.height = `${size}px`;
+    extra.style.left = `${x + (Math.random() - 0.5) * 100}px`;
+    extra.style.top = `${y + (Math.random() - 0.5) * 100}px`;
+    extra.dataset.type = 'boss';
+    extra.dataset.bossType = 'splitter';
+    extra.dataset.isClone = 'true';
+    extra.addEventListener('pointerdown', onTargetHit);
+    el.playArea.appendChild(extra);
+    state.activeDecoys.push(extra);
+    state.bossHealth = 1; // Clones take 1 hit
+}
+
+// Progression logic
+function updateStats(key, value, isCumulative = true) {
+    if (isCumulative) {
+        state.stats[key] = (state.stats[key] || 0) + value;
+    } else {
+        state.stats[key] = Math.max(state.stats[key] || 0, value);
+    }
+    localStorage.setItem('tapOrDie_stats', JSON.stringify(state.stats));
+    checkAchievements();
+}
+
+function checkAchievements() {
+    ACHIEVEMENTS.forEach(ach => {
+        if (!state.ownedSkins.includes(ach.skin) && state.stats[ach.type] >= ach.goal) {
+            state.ownedSkins.push(ach.skin);
+            localStorage.setItem('tapOrDie_ownedSkins', JSON.stringify(state.ownedSkins));
+            showLevelUpText(`ACHIEVEMENT: ${ach.name}!`);
+        }
+    });
+}
+
+function checkDailyChallenges() {
+    const today = new Date().toDateString();
+    const lastReset = localStorage.getItem('tapOrDie_lastReset');
+
+    if (lastReset !== today) {
+        state.dailyProgress = { targetsHit: 0, bossesDefeated: 0, maxCombo: 0 };
+        localStorage.setItem('tapOrDie_lastReset', today);
+    } else {
+        state.dailyProgress = JSON.parse(localStorage.getItem('tapOrDie_dailyProgress')) || { targetsHit: 0, bossesDefeated: 0, maxCombo: 0 };
+    }
+}
+
+function updateDailyProgress(key, value, isCumulative = true) {
+    if (isCumulative) {
+        state.dailyProgress[key] += value;
+    } else {
+        state.dailyProgress[key] = Math.max(state.dailyProgress[key], value);
+    }
+    localStorage.setItem('tapOrDie_dailyProgress', JSON.stringify(state.dailyProgress));
+
+    CHALLENGES.forEach(ch => {
+        const completedKey = `tapOrDie_ch_${ch.id}_completed`;
+        if (localStorage.getItem(completedKey) !== new Date().toDateString() && state.dailyProgress[ch.type] >= ch.goal) {
+            state.coins += ch.reward;
+            localStorage.setItem('tapOrDie_coins', state.coins);
+            localStorage.setItem(completedKey, new Date().toDateString());
+            showLevelUpText(`CHALLENGE DONE: +${ch.reward}🪙`);
+        }
+    });
 }
 
 
@@ -622,6 +826,14 @@ function onTargetHit(e) {
         return;
     }
 
+    // --- POWER-UP HIT ---
+    if (['time_freeze', 'double_coins', 'magnet'].includes(targetType)) {
+        activatePowerUp(targetType);
+        createExplosion(e.clientX, e.clientY, '#00d4ff'); // Color matched to PU
+        e.target.remove();
+        return;
+    }
+
     // --- BOSS HIT ---
     if (targetType === 'boss') {
         state.bossHealth--;
@@ -635,11 +847,26 @@ function onTargetHit(e) {
         ], { duration: 100 });
 
         if (state.bossHealth <= 0) {
+            if (e.target.dataset.bossType === 'splitter' && !e.target.dataset.isClone) {
+                // Spawn 2 clones
+                for (let i = 0; i < 2; i++) {
+                    spawnBossClone(e.clientX, e.clientY);
+                }
+                e.target.remove();
+                return;
+            }
+
             // BOSS DEFEATED
             createExplosion(e.clientX, e.clientY, '#ff00ff'); // Purple explosion
             audio.playSFX('boss_victory'); // Big sound
             state.score += 500; // HUGE Reward
-            state.coins += 50;
+
+            let coinBonus = 50;
+            if (isPowerUpActive('double_coins')) coinBonus *= 2;
+            state.coins += coinBonus;
+            state.stats.totalCoinsEarned += coinBonus;
+            state.stats.totalBossesDefeated++;
+            updateDailyProgress('bossesDefeated', 1);
             state.targetsHit += 5; // Skip ahead a bit?
 
             // Force Level Up
@@ -653,6 +880,7 @@ function onTargetHit(e) {
             if (state.currentWrapper) state.currentWrapper.remove();
             state.currentTarget = null;
             state.currentWrapper = null;
+            state.bossType = null; // Reset for next target
             spawnTarget();
         }
         return; // Don't run normal hit logic
@@ -670,6 +898,17 @@ function onTargetHit(e) {
 
         state.score += multiplier;
         state.targetsHit++;
+        state.stats.targetsHit++;
+        updateDailyProgress('targetsHit', 1);
+        updateStats('totalTargets', 1);
+
+        // Coin Reward on Normal Hit (e.g., 1 coin every 5 hits)
+        if (state.targetsHit % 5 === 0) {
+            let coinGain = 1;
+            if (isPowerUpActive('double_coins')) coinGain *= 2;
+            state.coins += coinGain;
+            state.stats.totalCoinsEarned += coinGain;
+        }
 
         // Level Up Logic (Every 5 hits)
         const newLevel = Math.floor(state.targetsHit / 5) + 1;
@@ -715,12 +954,21 @@ function showLevelUpText(level) {
 }
 
 function gameUpdate(timestamp) {
-    if (!state.isPlaying || !state.currentTarget) return;
+    const now = performance.now();
+    if (!state.lastFrameTime) state.lastFrameTime = now;
+    let delta = now - state.lastFrameTime;
+    state.lastFrameTime = now;
 
-    const elapsed = timestamp - state.spawnTime;
+    // TIME FREEZE: Slow down progression by 50%
+    if (isPowerUpActive('time_freeze')) {
+        state.spawnTime += delta * 0.5;
+    }
+
+    const elapsed = now - state.spawnTime;
     const remaining = state.timeLimit - elapsed;
 
     if (remaining <= 0) {
+        state.lastFrameTime = null; // Reset for next target
         gameOver();
         return;
     }
@@ -735,6 +983,27 @@ function gameUpdate(timestamp) {
 
     state.animationFrameId = requestAnimationFrame(gameUpdate);
 }
+
+// Magnet logic: Increase hit radius
+document.addEventListener('pointerdown', (e) => {
+    if (isPowerUpActive('magnet') && state.isPlaying && state.currentTarget) {
+        const rect = state.currentTarget.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dist = Math.sqrt(Math.pow(e.clientX - centerX, 2) + Math.pow(e.clientY - centerY, 2));
+
+        // If within 150px of target center, trigger hit
+        if (dist < 150 && e.target !== state.currentTarget) {
+            onTargetHit({
+                preventDefault: () => { },
+                stopPropagation: () => { },
+                target: state.currentTarget,
+                clientX: e.clientX,
+                clientY: e.clientY
+            });
+        }
+    }
+}, true);
 
 function createExplosion(x, y, overrideColor = null) {
     const skin = SKINS.find(s => s.id === state.currentSkinId) || SKINS[0];
@@ -833,8 +1102,8 @@ function quitGame() {
     gameOver(); // Trigger game over screen
 }
 
-function animateWrapper(wrapper, range) {
-    const speed = 1500 + Math.random() * 1000;
+function animateWrapper(wrapper, range, speedMult = 1) {
+    const speed = (1500 + Math.random() * 1000) * speedMult;
     const x = (Math.random() - 0.5) * range;
     const y = (Math.random() - 0.5) * range;
 

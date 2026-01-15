@@ -75,8 +75,9 @@
                         style="margin-bottom: 10px; border: 1px solid #ffd700; color: #ffd700;">REVIVE (100 🪙)</button>
                 </div>
                 <button id="start-btn">TAP TO START</button>
-                <div style="display: flex; gap: 10px; width: 100%; max-width: 250px;">
-                    <button id="shop-btn-trigger" class="secondary-btn" style="flex: 2;">SKIN SHOP</button>
+                <div style="display: flex; gap: 10px; width: 100%; max-width: 250px; flex-wrap: wrap;">
+                    <button id="shop-btn-trigger" class="secondary-btn" style="flex: 1;">SKINS</button>
+                    <button id="progression-btn-trigger" class="secondary-btn" style="flex: 1;">PROGRESS</button>
                     <button id="sound-btn" class="secondary-btn" style="flex: 1; min-width: 60px;">🔊</button>
                 </div>
             </div>
@@ -90,7 +91,27 @@
                 <div id="skin-grid">
                     <!-- Skins injected by JS -->
                 </div>
+
                 <button id="close-shop">CLOSE</button>
+            </div>
+        </div>
+
+        <!-- Progression Modal -->
+        <div id="progression-modal" class="hidden">
+            <div class="shop-content">
+                <h2>PROGRESSION</h2>
+                <h3 style="color:#fff; text-align:center; margin-top:20px;">DAILY CHALLENGES</h3>
+                <div id="challenges-list"
+                    style="color:#888; font-size:12px; display:flex; flex-direction:column; gap:5px; padding:10px;">
+                    <!-- Challenges injected by JS -->
+                </div>
+
+                <h3 style="color:#fff; text-align:center; margin-top:20px;">ACHIEVEMENTS</h3>
+                <div id="achievements-list"
+                    style="color:#888; font-size:12px; display:flex; flex-direction:column; gap:5px; padding:10px;">
+                    <!-- Achievements injected by JS -->
+                </div>
+                <button id="close-progression">CLOSE</button>
             </div>
         </div>
     </div>
