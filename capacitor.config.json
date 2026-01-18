@@ -1,0 +1,6 @@
+{
+    "appId": "com.medkhalilbs.tapordie",
+    "appName": "TapOrDie",
+    "webDir": ".",
+    "bundledWebRuntime": false
+}

@@ -23,6 +23,7 @@ const SKINS = [
     { id: 'gold_rush', name: 'Gold Rush', color: '#ffd700', price: 1000 },
     { id: 'blood_red', name: 'Vampire', color: '#ff0000', price: 2000 },
     { id: 'matrix', name: 'The Matrix', color: '#00ff41', price: 3000 },
+    { id: 'rainbow_prism', name: 'Rainbow Prism', color: 'rainbow', price: 4000 },
     { id: 'void_purple', name: 'Void', color: '#9d00ff', price: 5000 }
 ];
 
@@ -38,8 +39,10 @@ const BACKGROUNDS = [
 const TRAILS = [
     { id: 'trail_default', name: 'Neon Trail', color: 'var(--skin-color)', price: 0 },
     { id: 'trail_flame', name: 'Flame Burn', color: '#ff4500', price: 1000 },
-    { id: 'trail_electric', name: 'Volt Bolt', color: '#00f3ff', price: 2000 },
-    { id: 'trail_rainbow', name: 'Prism Pass', color: 'rainbow', price: 5000 }
+    { id: 'trail_electric', name: 'Electric Zap', color: '#00f3ff', price: 1500 },
+    { id: 'trail_ghost', name: 'Phantom', color: 'rgba(255,255,255,0.3)', price: 2000 },
+    { id: 'trail_rainbow', name: 'Prism', color: 'rainbow', price: 3000 },
+    { id: 'trail_gold', name: 'Midas Touch', color: '#ffd700', price: 5000 }
 ];
 
 const MISSIONS = [
@@ -221,6 +224,49 @@ class AudioManager {
 const audio = new AudioManager();
 
 // ==========================================
+// 3.5 MOBILE ADS ENGINE (Capacitor AdMob)
+// ==========================================
+class MobileAds {
+    constructor() {
+        this.isInitialized = false;
+        this.interstitialCount = 0;
+    }
+    async init() {
+        if (typeof AdMob === 'undefined') return;
+        try {
+            await AdMob.initialize();
+            this.isInitialized = true;
+        } catch (e) { console.warn('AdMob not available'); }
+    }
+    async showInterstitial() {
+        if (!this.isInitialized) return;
+        this.interstitialCount++;
+        if (this.interstitialCount % 3 !== 0) return;
+        try {
+            await AdMob.prepareInterstitial({ adId: 'ca-app-pub-3940256099942544/1033173712', isTesting: true });
+            await AdMob.showInterstitial();
+        } catch (e) { console.error('Ad Error', e); }
+    }
+    async showRewardAd() {
+        if (!this.isInitialized) {
+            // Mock for non-mobile testing
+            state.coins += 250; saveState(); renderShop(); updateUI();
+            showLevelUpText('+250 🪙 (MOCK AD)');
+            return;
+        }
+        try {
+            await AdMob.prepareRewardVideoAd({ adId: 'ca-app-pub-3940256099942544/5224354917', isTesting: true });
+            const reward = await AdMob.showRewardVideoAd();
+            if (reward) {
+                state.coins += 500; saveState(); renderShop(); updateUI();
+                showLevelUpText('REWARD: +500 🪙');
+            }
+        } catch (e) { console.error('Reward Error', e); }
+    }
+}
+const ads = new MobileAds();
+
+// ==========================================
 // 4. UI DATA & ELEMENT REFERENCES
 // ==========================================
 
@@ -306,6 +352,13 @@ function animateWrapper(wrapper, range, speedMult = 1) {
 }
 
 function triggerHaptic(type) {
+    if (typeof Haptics !== 'undefined') {
+        try {
+            if (type === 'success') Haptics.impact({ style: 'LIGHT' });
+            else if (type === 'fail') Haptics.notification({ type: 'ERROR' });
+            return;
+        } catch (e) { }
+    }
     if (navigator.vibrate) {
         if (type === 'success') navigator.vibrate(10);
         if (type === 'fail') navigator.vibrate([50, 50, 50]);
@@ -327,17 +380,27 @@ function createExplosion(x, y, colorOverride = null) {
 }
 
 function createTrailDot(x, y) {
-    if (Math.random() > 0.5) return;
+    if (Math.random() > 0.4) return;
+    const trail = TRAILS.find(t => t.id === state.currentTrailId) || TRAILS[0];
     const dot = document.createElement('div');
     dot.className = 'trail-dot';
-    if (state.currentTrailId === 'trail_flame') dot.classList.add('trail-flame');
-    else if (state.currentTrailId === 'trail_electric') dot.classList.add('trail-electric');
-    else if (state.currentTrailId === 'trail_rainbow') dot.classList.add('trail-rainbow');
+
+    if (trail.id === 'trail_rainbow') dot.classList.add('trail-rainbow');
+    else if (trail.id === 'trail_flame') dot.classList.add('trail-flame');
+    else if (trail.id === 'trail_electric') dot.classList.add('trail-electric');
+    else if (trail.id === 'trail_ghost') dot.classList.add('trail-ghost');
+    else {
+        let color = trail.color === 'var(--skin-color)' ? getComputedStyle(document.documentElement).getPropertyValue('--skin-color').trim() : trail.color;
+        dot.style.background = color;
+        dot.style.boxShadow = `0 0 10px ${color}`;
+    }
 
     dot.style.left = x + 'px';
     dot.style.top = y + 'px';
     el.container.appendChild(dot);
-    setTimeout(() => dot.remove(), 500);
+
+    const duration = trail.id === 'trail_ghost' ? 1000 : 500;
+    dot.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0)' }], { duration }).onfinish = () => dot.remove();
 }
 
 // ==========================================
@@ -479,6 +542,8 @@ function onTargetHit(e) {
         if (state.targetsHit % 5 === 0) { let coin = isPowerUpActive('double_coins') ? 2 : 1; state.coins += coin; updateStats('totalCoinsEarned', coin); saveState(); }
         if (state.targetsHit % 10 === 0) { state.currentLevel++; updateLevelUI(); showLevelUpText(state.currentLevel); audio.tempo += 5; }
         updateUI(); updateComboUI(); spawnTarget();
+        el.score.classList.remove('score-pop'); void el.score.offsetWidth; el.score.classList.add('score-pop');
+        if (state.combo % 5 === 0) { el.comboValue.classList.remove('combo-pulse'); void el.comboValue.offsetWidth; el.comboValue.classList.add('combo-pulse'); }
     }
 }
 
@@ -527,10 +592,14 @@ function gameOver() {
         } else showLevelUpText(`MISSION FAILED`);
     }
     state.currentMode = 'infinite'; state.currentMissionId = null;
-    el.finalScore.innerText = state.score; el.coinsEarned.innerText = earn; el.best.innerText = state.bestScore;
+    el.finalScore.innerText = state.score;
+    el.coinsEarned.innerText = earn;
+    el.best.innerText = state.bestScore;
+    updateUI();
     if (!state.hasRevived && state.coins >= 100) { el.reviveBtn.classList.remove('hidden'); el.reviveBtn.onclick = () => attemptRevive(); }
     else el.reviveBtn.classList.add('hidden');
     el.resultBox.classList.remove('hidden'); el.titleText.classList.add('hidden'); el.overlay.classList.add('active'); el.startBtn.innerText = "RETRY";
+    ads.showInterstitial();
 }
 
 function attemptRevive() {
@@ -579,8 +648,15 @@ function updateComboUI() {
 
 function updateSkinVariables() {
     const skin = SKINS.find(s => s.id === state.currentSkinId) || SKINS[0];
-    document.documentElement.style.setProperty('--skin-color', skin.color);
-    document.documentElement.style.setProperty('--skin-glow', `0 0 20px ${skin.color}`);
+    if (skin.color === 'rainbow') {
+        document.documentElement.style.setProperty('--skin-color', '#fff');
+        document.documentElement.style.setProperty('--skin-glow', '0 0 20px #fff');
+        el.container.classList.add('rainbow-skin');
+    } else {
+        el.container.classList.remove('rainbow-skin');
+        document.documentElement.style.setProperty('--skin-color', skin.color);
+        document.documentElement.style.setProperty('--skin-glow', `0 0 20px ${skin.color}`);
+    }
 }
 
 function updateBackground() { document.documentElement.style.setProperty('--bg-color', (BACKGROUNDS.find(b => b.id === state.currentBgId) || BACKGROUNDS[0]).color); }
@@ -596,6 +672,14 @@ function showLevelUpText(txt) {
 
 function renderShop() {
     el.skinGrid.innerHTML = ''; el.shopCoins.innerText = state.coins;
+
+    // Add Reward Ad Button
+    const adBtn = document.createElement('div');
+    adBtn.className = 'skin-item ad-reward-item';
+    adBtn.innerHTML = `<div class="skin-preview" style="background:#ffd700; display:flex; justify-content:center; align-items:center;">📺</div><div class="skin-info"><div class="skin-name">FREE COINS</div><div class="skin-price">WATCH AD</div></div>`;
+    adBtn.onclick = () => ads.showRewardAd();
+    el.skinGrid.appendChild(adBtn);
+
     el.tabSkins.className = currentShopTab === 'skin' ? 'secondary-btn active' : 'secondary-btn';
     el.tabTrails.className = currentShopTab === 'trail' ? 'secondary-btn active' : 'secondary-btn';
     el.tabBgs.className = currentShopTab === 'bg' ? 'secondary-btn active' : 'secondary-btn';
@@ -606,18 +690,31 @@ function renderShop() {
 
     list.forEach(item => {
         const isO = owned.includes(item.id); const isA = active === item.id;
-        const div = document.createElement('div'); div.className = `skin-item ${isA ? 'active' : ''}`;
-        let col = item.color === 'rainbow' ? 'linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)' : (item.color.startsWith('var') ? 'var(--skin-color)' : item.color);
-        div.innerHTML = `<div class="skin-preview" style="background:${col}"></div><div class="skin-req">${item.name}</div><div class="skin-req">${isA ? 'EQUIPPED' : (isO ? 'OWNED' : `${item.price} 🪙`)}</div>`;
+        const div = document.createElement('div'); div.className = `skin-item ${isA ? 'active' : ''} ${!isO && state.coins < item.price ? 'locked' : ''}`;
+
+        let col = item.color === 'rainbow' ? 'linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)' : (item.color.startsWith('var') ? getComputedStyle(document.documentElement).getPropertyValue('--skin-color').trim() : item.color);
+
+        div.innerHTML = `
+            <div class="skin-preview" style="background:${col}"></div>
+            <div class="skin-info">
+                <div class="skin-name">${item.name}</div>
+                <div class="skin-price">${isA ? '<span class="status-equipped">EQUIPPED</span>' : (isO ? '<span class="status-owned">OWNED</span>' : `<span>${item.price} 🪙</span>`)}</div>
+            </div>
+        `;
+
         div.onclick = () => {
             if (isO) {
                 if (currentShopTab === 'skin') { state.currentSkinId = item.id; updateSkinVariables(); }
                 else if (currentShopTab === 'trail') state.currentTrailId = item.id;
                 else { state.currentBgId = item.id; updateBackground(); }
                 saveState(); renderShop(); audio.playSFX('success');
+                div.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.95)' }, { transform: 'scale(1)' }], { duration: 200 });
             } else if (state.coins >= item.price) {
-                state.coins -= item.price; owned.push(item.id); saveState(); renderShop(); audio.playSFX('success');
-            } else triggerHaptic('fail');
+                state.coins -= item.price; owned.push(item.id); saveState(); renderShop(); audio.playSFX('boss_victory');
+            } else {
+                triggerHaptic('fail');
+                div.animate([{ transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 100, iterations: 2 });
+            }
         };
         el.skinGrid.appendChild(div);
     });
@@ -653,6 +750,7 @@ function renderProgression() {
 
 function init() {
     updateSkinVariables(); updateBackground(); updateSoundUI();
+    ads.init();
     el.startBtn.addEventListener('click', startGame);
     el.shopBtn.addEventListener('click', () => { el.shopModal.classList.remove('hidden'); renderShop(); });
     el.closeShopBtn.addEventListener('click', () => el.shopModal.classList.add('hidden'));
@@ -668,7 +766,12 @@ function init() {
     el.pauseBtn.addEventListener('click', togglePause);
     el.resumeBtn.addEventListener('click', togglePause);
     el.quitBtn.addEventListener('click', quitGame);
-    el.container.addEventListener('pointermove', (e) => { if (state.isPlaying) createTrailDot(e.clientX, e.clientY); });
+    el.container.addEventListener('pointermove', (e) => {
+        if (state.isPlaying) {
+            const rect = el.container.getBoundingClientRect();
+            createTrailDot(e.clientX - rect.left, e.clientY - rect.top);
+        }
+    });
     document.addEventListener('click', () => { audio.init(); }, { once: true });
 }
 
