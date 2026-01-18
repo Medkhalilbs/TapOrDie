@@ -240,7 +240,106 @@ body {
     }
 }
 
-/* HUD */
+#mission-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding: 10px;
+    max-height: 400px;
+    scrollbar-width: none;
+}
+
+#mission-grid::-webkit-scrollbar {
+    display: none;
+}
+
+.mission-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.mission-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(5px);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.mission-card.active {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.05);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+}
+
+.mission-icon {
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.mission-card.active .mission-icon {
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+}
+
+.mission-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mission-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+.mission-desc {
+    font-size: 11px;
+    color: #888;
+}
+
+.mission-reward {
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffd700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.mission-status-badge {
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 900;
+    color: #aaa;
+    text-transform: uppercase;
+}
+
+.mission-card.active .mission-status-badge {
+    background: #ffd700;
+    color: #000;
+}
+
 #hud {
     position: absolute;
     top: 20px;

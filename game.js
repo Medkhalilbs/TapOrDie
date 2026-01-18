@@ -724,9 +724,32 @@ function renderMissions() {
     el.missionGrid.innerHTML = '';
     MISSIONS.forEach(m => {
         const isD = state.completedMissions.includes(m.id);
-        const b = document.createElement('div'); b.className = `skin-item ${isD ? 'active' : ''}`;
-        b.innerHTML = `<div style="font-size:18px; font-weight:bold;">${m.id}</div><div style="font-size:10px">${isD ? '★ COMPLETED' : 'INCOMPLETE'}</div>`;
-        b.onclick = () => { el.missionModal.classList.add('hidden'); startMission(m.id); };
+        const b = document.createElement('div'); b.className = `mission-card ${isD ? 'active' : ''}`;
+
+        let icon = '🎯';
+        let desc = `Hit ${m.goal} targets`;
+        if (m.type === 'bosses') { icon = '🛡️'; desc = `Defeat ${m.goal} boss${m.goal > 1 ? 'es' : ''}`; }
+        else if (m.type === 'combo') { icon = '🔥'; desc = `Reach a x${m.goal} combo`; }
+        else if (m.type === 'gold') { icon = '💰'; desc = `Hit ${m.goal} gold target${m.goal > 1 ? 's' : ''}`; }
+
+        b.innerHTML = `
+            <div class="mission-icon">${icon}</div>
+            <div class="mission-details">
+                <div class="mission-title">${m.name}</div>
+                <div class="mission-desc">${desc} within ${m.time / 1000}s</div>
+                <div class="mission-reward">REWARD: ${m.reward} 🪙</div>
+            </div>
+            <div class="mission-status-badge">${isD ? '★ DONE' : 'GO'}</div>
+        `;
+
+        b.onclick = () => {
+            b.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.95)' }, { transform: 'scale(1)' }], { duration: 200 });
+            audio.playSFX('success');
+            setTimeout(() => {
+                el.missionModal.classList.add('hidden');
+                startMission(m.id);
+            }, 250);
+        };
         el.missionGrid.appendChild(b);
     });
 }
